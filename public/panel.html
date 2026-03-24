@@ -685,18 +685,18 @@
         <div style="margin-bottom:14px">
           <label><i class="fas fa-database"></i> إجراءات</label>
           <div class="btns2" style="margin-top:8px">
-            <button class="secondary" id="btnBackupAll">
+            <button class="secondary" id="btnBackupAll" data-perm="export">
               <i class="fas fa-download"></i> حفظ JSON (كل)
             </button>
-            <button class="secondary" id="btnRestoreAll">
+            <button class="secondary" id="btnRestoreAll" data-perm="import">
               <i class="fas fa-upload"></i> استيراد JSON
             </button>
           </div>
           <div class="btns2" style="margin-top:8px">
-            <button class="secondary" id="btnExportAllExcel">
+            <button class="secondary" id="btnExportAllExcel" data-perm="export">
               <i class="fas fa-file-excel"></i> تنزيل Excel
             </button>
-            <button class="secondary" id="btnImportExcel">
+            <button class="secondary" id="btnImportExcel" data-perm="import">
               <i class="fas fa-file-import"></i> رفع Excel
             </button>
           </div>
@@ -710,16 +710,16 @@
         <div id="formArea"></div>
 
         <div class="btns3">
-          <button class="secondary" id="btnNew">
+          <button class="secondary" id="btnNew" data-perm="add">
             <i class="fas fa-file-circle-plus"></i> جديد
           </button>
-          <button class="success" id="btnSave">
+          <button class="success" id="btnSave" data-perm="edit">
             <i class="fas fa-floppy-disk"></i> حفظ
           </button>
-          <button class="danger" id="btnDelete">
+          <button class="danger" id="btnDelete" data-perm="delete">
             <i class="fas fa-trash-can"></i> حذف
           </button>
-          <button class="danger" id="btnDismantleEntry" style="display:none;background:#b45309;border-color:#b45309;">
+          <button class="danger" id="btnDismantleEntry" data-perm="delete" style="display:none;background:#b45309;border-color:#b45309;">
             <i class="fas fa-link-slash"></i> تفكيك القيد
           </button>
         </div>
@@ -728,16 +728,16 @@
           اختر صفًا من الجدول لتعديله، أو أدخل البيانات واضغط "حفظ".
         </div>
 
-        <details>
+        <details id="detailsExport">
           <summary><i class="fas fa-file-export"></i> تصدير/طباعة</summary>
           <div class="btns3" style="margin-top:10px">
-            <button class="secondary" id="btnExportExcel">
+            <button class="secondary" id="btnExportExcel" data-perm="export">
               <i class="fas fa-file-excel"></i> Excel
             </button>
-            <button class="secondary" id="btnExportPDF">
+            <button class="secondary" id="btnExportPDF" data-perm="export">
               <i class="fas fa-file-pdf"></i> PDF
             </button>
-            <button class="secondary" id="btnPrint">
+            <button class="secondary" id="btnPrint" data-perm="export">
               <i class="fas fa-print"></i> طباعة
             </button>
           </div>
@@ -746,10 +746,10 @@
         <details>
           <summary><i class="fas fa-file-code"></i> JSON (لوحة واحدة)</summary>
           <div class="btns2" style="margin-top:10px">
-            <button class="secondary" id="btnSaveJson">
+            <button class="secondary" id="btnSaveJson" data-perm="export">
               <i class="fas fa-download"></i> حفظ JSON
             </button>
-            <button class="secondary" id="btnLoadJson">
+            <button class="secondary" id="btnLoadJson" data-perm="import">
               <i class="fas fa-upload"></i> استيراد JSON
             </button>
           </div>
@@ -1069,6 +1069,10 @@
       const panel = currentPanel();
       if (panel && typeof initSortFilterBar === "function") initSortFilterBar(panel);
       await renderTable();
+      // إعادة تطبيق الصلاحيات بعد كل render لأن بعض الأزرار تُنشأ ديناميكياً
+      if (typeof window.applyPermissions === "function") {
+        window.applyPermissions(window._authUser);
+      }
     }
 
     // ── تحميل الصفحة ──────────────────────────────────────
@@ -1234,8 +1238,16 @@
           });
         })();
 
+        // انتظر انتهاء checkAuth قبل renderAll لضمان صحة الصلاحيات
+        if (window._authReady) {
+          try { await window._authReady; } catch {}
+        }
         // تشغيل
         await renderAll();
+        // ── إعادة تطبيق الصلاحيات بعد renderAll لضمان إخفاء/إظهار الأزرار الصحيح ──
+        if (typeof window.applyPermissions === 'function' && window._authUser) {
+          window.applyPermissions(window._authUser);
+        }
         setStatus("جاهز ✅ (Local)");
         showToast("تم تحميل اللوحة بنجاح! 🎉", "success");
 

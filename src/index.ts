@@ -42,6 +42,26 @@ async function getSessionUser(c: any): Promise<Record<string,unknown> | null> {
   } catch { return null }
 }
 
+// مساعد: تحويل قيمة الصلاحية إلى boolean
+// يتعامل مع: 0, 1, "0", "1", true, false, null, undefined
+function permAllowed(val: unknown): boolean {
+  if (val === null || val === undefined) return true  // افتراضي: مسموح
+  if (typeof val === 'boolean') return val
+  if (typeof val === 'number') return val !== 0
+  if (typeof val === 'string') return val !== '0' && val !== 'false' && val !== ''
+  return Boolean(val)
+}
+
+// مساعد: التحقق من أن اللوحة مسموح بها للمستخدم
+function panelAllowed(user: Record<string,unknown>, panel: string): boolean {
+  const ap = user.allowed_panels
+  if (!ap) return true  // null = كل اللوحات مسموح بها
+  try {
+    const arr: string[] = typeof ap === 'string' ? JSON.parse(ap) : (ap as string[])
+    return Array.isArray(arr) ? arr.includes(panel) : true
+  } catch { return true }
+}
+
 // ── تسجيل نشاط في activity_log ───────────────────────────
 async function logActivity(
   db: D1Database,
@@ -459,6 +479,11 @@ app.get('/api/:panel', async (c) => {
   const table = TABLE_MAP[panel]
   if (!table) return c.json({ error: 'لوحة غير معروفة' }, 404)
 
+  // التحقق من صلاحية الوصول إلى اللوحة
+  const _getUser = await getSessionUser(c)
+  if (!_getUser) return c.json({ error: 'غير مخوّل' }, 401)
+  if (!panelAllowed(_getUser, panel)) return c.json({ error: 'ليس لديك صلاحية الوصول إلى هذه اللوحة' }, 403)
+
   // Pagination: ?page=1&limit=100  (الافتراضي: كل السجلات)
   const pageParam  = c.req.query('page')
   const limitParam = c.req.query('limit')
@@ -505,7 +530,8 @@ app.post('/api/:panel', async (c) => {
   // التحقق من صلاحية الإضافة
   const _postUser = await getSessionUser(c)
   if (!_postUser) return c.json({ error: 'غير مخوّل' }, 401)
-  if (_postUser.can_add === 0) return c.json({ error: 'ليس لديك صلاحية إضافة بيانات' }, 403)
+  if (!panelAllowed(_postUser, panel)) return c.json({ error: 'ليس لديك صلاحية الوصول إلى هذه اللوحة' }, 403)
+  if (!permAllowed(_postUser.can_add)) return c.json({ error: 'ليس لديك صلاحية إضافة بيانات' }, 403)
 
   try {
     const body = await c.req.json() as Record<string, unknown>
@@ -553,7 +579,8 @@ app.put('/api/:panel/:id', async (c) => {
   // التحقق من صلاحية التعديل
   const _putUser = await getSessionUser(c)
   if (!_putUser) return c.json({ error: 'غير مخوّل' }, 401)
-  if (_putUser.can_edit === 0) return c.json({ error: 'ليس لديك صلاحية تعديل البيانات' }, 403)
+  if (!panelAllowed(_putUser, panel)) return c.json({ error: 'ليس لديك صلاحية الوصول إلى هذه اللوحة' }, 403)
+  if (!permAllowed(_putUser.can_edit)) return c.json({ error: 'ليس لديك صلاحية تعديل البيانات' }, 403)
 
   try {
     const body = await c.req.json() as Record<string, unknown>
@@ -597,7 +624,8 @@ app.delete('/api/:panel/:id', async (c) => {
   // التحقق من صلاحية الحذف
   const _delUser = await getSessionUser(c)
   if (!_delUser) return c.json({ error: 'غير مخوّل' }, 401)
-  if (_delUser.can_delete === 0) return c.json({ error: 'ليس لديك صلاحية حذف البيانات' }, 403)
+  if (!panelAllowed(_delUser, panel)) return c.json({ error: 'ليس لديك صلاحية الوصول إلى هذه اللوحة' }, 403)
+  if (!permAllowed(_delUser.can_delete)) return c.json({ error: 'ليس لديك صلاحية حذف البيانات' }, 403)
 
   try {
     await c.env.foundation_db
@@ -621,7 +649,8 @@ app.delete('/api/:panel', async (c) => {
   // التحقق من صلاحية الحذف
   const _delAllUser = await getSessionUser(c)
   if (!_delAllUser) return c.json({ error: 'غير مخوّل' }, 401)
-  if (_delAllUser.can_delete === 0) return c.json({ error: 'ليس لديك صلاحية حذف البيانات' }, 403)
+  if (!panelAllowed(_delAllUser, panel)) return c.json({ error: 'ليس لديك صلاحية الوصول إلى هذه اللوحة' }, 403)
+  if (!permAllowed(_delAllUser.can_delete)) return c.json({ error: 'ليس لديك صلاحية حذف البيانات' }, 403)
 
   try {
     await c.env.foundation_db.prepare(`DELETE FROM ${table}`).run()

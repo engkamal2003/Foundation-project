@@ -444,8 +444,15 @@ function renderUsers(users) {
 
   tbody.innerHTML = users.map((u, i) => {
     const panels = u.allowed_panels ? JSON.parse(u.allowed_panels) : null;
-    const panelStr = panels === null ? '<span style="color:var(--success)">جميع اللوحات</span>'
-      : `<span style="color:var(--text-muted)">${panels.length} لوحة</span>`;
+    // بناء قائمة أسماء اللوحات لعرضها
+    const panelNames = panels ? panels.map(k => {
+      const p = ALL_PANELS.find(x => x.key === k);
+      return p ? p.label : k;
+    }) : null;
+    const panelTooltip = panelNames ? panelNames.join('، ') : 'جميع اللوحات';
+    const panelStr = panels === null
+      ? '<span style="color:var(--success)"><i class="fas fa-check-circle"></i> جميع اللوحات</span>'
+      : `<span style="color:var(--text-muted);cursor:help" title="${panelTooltip}"><i class="fas fa-th-large"></i> ${panels.length} لوحة</span>`;
     const perms = [];
     if (u.can_add)    perms.push('<span title="إضافة" style="color:var(--success)"><i class="fas fa-plus-circle"></i></span>');
     if (u.can_edit)   perms.push('<span title="تعديل" style="color:var(--warning)"><i class="fas fa-edit"></i></span>');

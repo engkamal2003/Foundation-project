@@ -53,8 +53,28 @@
   }
 
   // ── تطبيق صلاحيات المستخدم على الواجهة ─────────────────────
-  function applyPermissions(user) {
+  // هذه الدالة عامة يمكن استدعاؤها في أي وقت (بعد renderAll مثلاً)
+  window.applyPermissions = function applyPermissions(user) {
+    if (!user) user = window._authUser;
     if (!user) return;
+
+    // ── مساعد: تحويل القيمة إلى boolean بشكل آمن ──────────────
+    // يتعامل مع: 0, 1, "0", "1", true, false, null, undefined
+    // null/undefined = مسموح افتراضياً (لم يُعيَّن قيد)
+    function toBool(val) {
+      if (val === null || val === undefined) return true; // افتراضي: مسموح
+      if (typeof val === 'boolean') return val;
+      if (typeof val === 'number') return val !== 0;
+      if (typeof val === 'string') return val !== '0' && val !== 'false' && val !== '';
+      return Boolean(val);
+    }
+
+    const canAdd    = toBool(user.can_add);
+    const canEdit   = toBool(user.can_edit);
+    const canDelete = toBool(user.can_delete);
+    const canExport = toBool(user.can_export);
+    const canImport = toBool(user.can_import);
+    const isAdmin   = user.role === 'admin';
 
     // إضافة اسم المستخدم في شريط الأدوات
     const nameEl = document.getElementById('_authUserName');
@@ -62,49 +82,63 @@
 
     // إظهار/إخفاء زر Admin
     const adminBtn = document.getElementById('_adminPanelBtn');
-    if (adminBtn) adminBtn.style.display = user.role === 'admin' ? '' : 'none';
+    if (adminBtn) adminBtn.style.display = isAdmin ? '' : 'none';
 
-    // صلاحية الإضافة
-    if (!user.can_add) {
-      document.querySelectorAll('#btnNew, [data-perm="add"]').forEach(el => {
-        el.style.display = 'none';
-      });
-    }
+    // ── تطبيق كل صلاحية على جميع العناصر المقابلة ──────────────
+    const permMap = {
+      'add':    canAdd,
+      'edit':   canEdit,
+      'delete': canDelete,
+      'export': canExport,
+      'import': canImport,
+    };
 
-    // صلاحية التعديل
-    if (!user.can_edit) {
-      document.querySelectorAll('#btnSave, [data-perm="edit"]').forEach(el => {
-        el.style.display = 'none';
-      });
-    }
+    // 1) العناصر بـ data-perm
+    document.querySelectorAll('[data-perm]').forEach(el => {
+      const perm = el.getAttribute('data-perm');
+      if (perm in permMap) {
+        el.style.display = permMap[perm] ? '' : 'none';
+      }
+    });
 
-    // صلاحية الحذف
-    if (!user.can_delete) {
-      document.querySelectorAll('#btnDelete, #btnDismantleEntry, [data-perm="delete"]').forEach(el => {
-        el.style.display = 'none';
-      });
-    }
+    // 2) الأزرار بـ ID محدد (احتياطي إضافي)
+    const btnIdMap = {
+      'btnNew':             canAdd,
+      'btnSave':            canEdit || canAdd,  // الحفظ يعمل للإضافة أو التعديل
+      'btnDelete':          canDelete,
+      'btnDismantleEntry':  canDelete,
+      'btnExportExcel':     canExport,
+      'btnExportAllExcel':  canExport,
+      'btnExportPDF':       canExport,
+      'btnPrint':           canExport,
+      'btnImportExcel':     canImport,
+      'btnBackupAll':       canExport,
+      'btnRestoreAll':      canImport,
+      'btnSaveJson':        canExport,
+      'btnLoadJson':        canImport,
+    };
 
-    // صلاحية التصدير
-    if (!user.can_export) {
-      document.querySelectorAll('[data-perm="export"], .export-btn').forEach(el => {
-        el.style.display = 'none';
-      });
-    }
+    Object.entries(btnIdMap).forEach(([id, allowed]) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = allowed ? '' : 'none';
+    });
 
-    // صلاحية الاستيراد
-    if (!user.can_import) {
-      document.querySelectorAll('[data-perm="import"], .import-btn').forEach(el => {
-        el.style.display = 'none';
-      });
+    // 3) صلاحيات اللوحات المسموح بها
+    try {
+      let allowedPanels = null;
+      if (user.allowed_panels) {
+        allowedPanels = typeof user.allowed_panels === 'string'
+          ? JSON.parse(user.allowed_panels)
+          : user.allowed_panels;
+      }
+      window._allowedPanels = allowedPanels; // null = كل اللوحات مسموح بها
+    } catch {
+      window._allowedPanels = null;
     }
+  };
 
-    // صلاحيات اللوحات
-    const allowedPanels = user.allowed_panels ? JSON.parse(user.allowed_panels) : null;
-    if (allowedPanels) {
-      window._allowedPanels = allowedPanels;
-    }
-  }
+  // اجعل الدالة القديمة تشير لنفس الدالة العامة (للتوافق)
+  const applyPermissions = window.applyPermissions;
 
   // ── تسجيل الخروج ────────────────────────────────────────────
   window.authLogout = async function() {
