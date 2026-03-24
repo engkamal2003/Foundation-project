@@ -1653,13 +1653,19 @@ function updateSelectedCount() {
   const btnDelete    = $("btnDelete");
   const btnDismantle = $("btnDismantleEntry");
   if (btnDelete && btnDismantle) {
+    // canDelete من صلاحيات المستخدم الحالي
+    const _canDel = window._authUser
+      ? (function(v){ return v===null||v===undefined?true:typeof v==='boolean'?v:typeof v==='number'?v!==0:v!=='0'&&v!=='false'&&v!==''; })(window._authUser.can_delete)
+      : true;
+
     if (window.activeKey === "combined_entries" && count > 0) {
-      // في لوحة القيود المستحقة مع تحديد سجل: أظهر تفكيك وأخفِ حذف
+      // في لوحة القيود المستحقة مع تحديد سجل:
+      // أظهر "تفكيك" فقط إذا كان لديه صلاحية الحذف، وأخفِ "حذف"
       btnDelete.style.display    = "none";
-      btnDismantle.style.display = "inline-flex";
+      btnDismantle.style.display = _canDel ? "inline-flex" : "none";
     } else {
-      // باقي اللوحات: أظهر حذف وأخفِ تفكيك
-      btnDelete.style.display    = "inline-flex";
+      // باقي اللوحات: أظهر حذف (حسب الصلاحية) وأخفِ تفكيك دائماً
+      btnDelete.style.display    = _canDel ? "inline-flex" : "none";
       btnDismantle.style.display = "none";
     }
   }

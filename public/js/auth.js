@@ -110,7 +110,7 @@
       'btnNew':             canAdd,
       'btnSave':            canEdit || canAdd,  // الحفظ يعمل للإضافة أو التعديل
       'btnDelete':          canDelete,
-      'btnDismantleEntry':  canDelete,
+      // btnDismantleEntry يُتحكم به في table.js حسب اللوحة النشطة (combined_entries فقط)
       'btnExportExcel':     canExport,
       'btnExportAllExcel':  canExport,
       'btnExportPDF':       canExport,
