@@ -11,14 +11,5 @@ async function renderAll() {
   renderTabs();
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    initTheme();
-    await renderAll();
-    setStatus("جاهز ✅ (Local)");
-  } catch (e) {
-    console.error(e);
-    setStatus("خطأ ❌");
-    showToast("حدث خطأ: " + e.message, "error");
-  }
-});
+// ملاحظة: DOMContentLoaded يُعالَج في index.html مباشرة
+// لتجنب التعارض مع انتظار _authReady وبناء buildLauncher
