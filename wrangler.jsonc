@@ -11,10 +11,8 @@
       "database_id": "0033816c-dbd6-4cfb-bb9b-e93859fa5c9c"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "BACKUPS",
-      "bucket_name": "foundation-backups"
-    }
-  ]
+  // R2 معطّل حتى يتم تفعيله في Cloudflare Dashboard
+  // "r2_buckets": [
+  //   { "binding": "BACKUPS", "bucket_name": "foundation-backups" }
+  // ]
 }
