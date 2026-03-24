@@ -299,23 +299,6 @@ function mergeRow(row: Record<string, unknown>): Record<string, unknown> {
 // ── GET /api/health - فحص الحالة ─────────────────────────────────
 app.get('/api/health', (c) => c.json({ status: 'ok', db: 'D1 connected' }))
 
-// ── GET /api/debug/panel-check - تشخيص صلاحية اللوحات ──────────
-app.get('/api/debug/panel-check', async (c) => {
-  const user = await getSessionUser(c)
-  if (!user) return c.json({ error: 'غير مخوّل' }, 401)
-  const ap = user.allowed_panels
-  const panels = ['donors','trucks','units']
-  const result = panels.map(p => ({
-    panel: p,
-    allowed: panelAllowed(user, p),
-  }))
-  return c.json({
-    user_id: user.id,
-    allowed_panels_raw: ap,
-    allowed_panels_type: typeof ap,
-    checks: result
-  })
-})
 
 // ── GET /api/activity_log - جلب سجل النشاطات ────────────────────
 app.get('/api/activity_log', async (c) => {
