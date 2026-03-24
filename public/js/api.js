@@ -4,10 +4,35 @@
 
 const API_BASE = "/api";
 
+// ── مساعد: جلب الـ token من الجلسة ───────────────────────────────
+function _getAuthToken() {
+  return window._authToken || localStorage.getItem('_authToken') || '';
+}
+
+// ── مساعد: بناء headers مع Authorization ──────────────────────────
+function _authHeaders(extra = {}) {
+  const token = _getAuthToken();
+  const headers = { "Content-Type": "application/json", ...extra };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  return headers;
+}
+
+// ── مساعد: قراءة الخطأ من الـ response ────────────────────────────
+async function _readError(res) {
+  try {
+    const json = await res.json();
+    return json.error || JSON.stringify(json);
+  } catch {
+    try { return await res.text(); } catch { return `HTTP ${res.status}`; }
+  }
+}
+
 // ── جلب كل سجلات لوحة من D1 ──────────────────────────────────────
 async function apiList(panelKey) {
-  const res = await fetch(`${API_BASE}/${panelKey}`);
-  if (!res.ok) throw new Error(await res.text());
+  const res = await fetch(`${API_BASE}/${panelKey}`, {
+    headers: _authHeaders()
+  });
+  if (!res.ok) throw new Error(await _readError(res));
   const json = await res.json();
   return json.data || [];
 }
@@ -16,10 +41,10 @@ async function apiList(panelKey) {
 async function apiCreate(panelKey, record) {
   const res = await fetch(`${API_BASE}/${panelKey}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: _authHeaders(),
     body: JSON.stringify(record)
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await _readError(res));
   return res.json();
 }
 
@@ -27,19 +52,20 @@ async function apiCreate(panelKey, record) {
 async function apiUpdate(panelKey, id, record) {
   const res = await fetch(`${API_BASE}/${panelKey}/${encodeURIComponent(id)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: _authHeaders(),
     body: JSON.stringify(record)
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await _readError(res));
   return res.json();
 }
 
 // ── حذف سجل من D1 ────────────────────────────────────────────────
 async function apiDelete(panelKey, id) {
   const res = await fetch(`${API_BASE}/${panelKey}/${encodeURIComponent(id)}`, {
-    method: "DELETE"
+    method: "DELETE",
+    headers: _authHeaders()
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await _readError(res));
   return res.json();
 }
 
