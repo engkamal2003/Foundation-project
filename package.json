@@ -1,0 +1,24 @@
+{
+  "name": "foundation-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev dist --d1=foundation_db --local --ip 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name foundation-project",
+    "db:migrate:local": "wrangler d1 migrations apply foundation-db --local",
+    "db:migrate:prod": "wrangler d1 migrations apply foundation-db --remote",
+    "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:migrate:local"
+  },
+  "dependencies": {
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250705.0",
+    "@hono/vite-cloudflare-pages": "^0.4.2",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0",
+    "wrangler": "^3.114.0"
+  }
+}

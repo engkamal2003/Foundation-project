@@ -1,0 +1,1758 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>لوحة الإدخال</title>
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <!-- Excel / PDF -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <style>
+    /* ─── Panel-page specific layout ─────────────────────── */
+    body { margin: 0; }
+
+    .panel-page-wrap {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 0 1rem 2rem;
+    }
+
+    /* Top bar */
+    .pp-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      padding: 0.75rem 1rem;
+      background: var(--bg-secondary);
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .pp-topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1;
+      min-width: 0;
+    }
+    .pp-back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.85rem;
+      font-family: inherit;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-primary);
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .pp-back-btn:hover {
+      background: var(--border);
+    }
+    .pp-panel-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .pp-topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    /* ─── شريط اللوحات الأفقي ───────────────────────────── */
+    .panels-nav {
+      background: var(--bg-card);
+      border-bottom: 1.5px solid var(--border);
+      padding: 6px 12px 4px;
+      overflow: hidden;
+    }
+    .panels-nav-inner {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 6px;
+      overflow-x: visible;
+      padding-bottom: 4px;
+    }
+    .pnav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      font-size: 11.5px;
+      font-family: inherit;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      background: transparent;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      text-decoration: none;
+    }
+    .pnav-btn:hover {
+      background: rgba(99,102,241,0.1);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .pnav-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* Two-column layout: form left, table right */
+
+    /* ─── Layout الجديد: ثبات التوبار والنموذج + scroll أفقي للجدول فقط ─── */
+
+    /* الصفحة كلها: منع الـ scroll الأفقي على body */
+    html, body {
+      overflow-x: hidden;
+      height: 100%;
+    }
+
+    /* التوبار وشريط اللوحات: ثابتان تماماً */
+    .pp-topbar {
+      position: sticky !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 200 !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .panels-nav {
+      position: sticky !important;
+      top: var(--topbar-h, 56px) !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 199 !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    /* الـ wrapper الخارجي */
+    .panel-page-wrap {
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    /* الـ Grid: عمودان — الحقول ثابتة + الجدول يملأ الباقي */
+    .pp-grid {
+      display: flex !important;
+      flex-direction: row !important;
+      gap: 0 !important;
+      align-items: stretch !important;
+      height: calc(100vh - var(--topbar-h, 56px) - var(--nav-h, 44px)) !important;
+      overflow: hidden !important;
+      position: relative !important;
+    }
+
+    /* ── عمود الحقول (Form Card): ثابت لا يتحرك ── */
+    .pp-form-card {
+      width: 360px !important;
+      min-width: 360px !important;
+      max-width: 360px !important;
+      flex-shrink: 0 !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      height: 100% !important;
+      box-sizing: border-box !important;
+      border-radius: 0 !important;
+      border-top: none !important;
+      border-right: none !important;
+      border-bottom: none !important;
+      border-left: 2px solid var(--border) !important;
+      margin: 0 !important;
+      /* إخفاء الفورم كارد عند sidebar-hidden */
+      transition: width 0.25s ease, min-width 0.25s ease, opacity 0.2s ease;
+    }
+    .pp-form-card.sidebar-hidden {
+      width: 0 !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
+      opacity: 0 !important;
+      border: none !important;
+      padding: 0 !important;
+    }
+
+    /* ── شريط الأدوات: ثابت فوق الجدول (لا يتحرك لأن الـ scroll في tablewrap) ── */
+    .table-toolbar-sticky {
+      flex-shrink: 0;
+      z-index: 20;
+      background: var(--bg-card, #fff);
+      padding-bottom: 4px;
+      margin-bottom: 0;
+      box-shadow: 0 2px 8px -2px rgba(0,0,0,0);
+      transition: box-shadow 0.2s;
+    }
+    .table-toolbar-sticky.scrolled {
+      box-shadow: 0 2px 12px -2px rgba(0,0,0,0.15);
+    }
+
+    /* ── شريط تبديل الأدوات (دائم الظهور) ── */
+    .toolbar-toggle-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 5px 10px;
+      background: var(--bg-card, #1e293b);
+      border-bottom: 1px solid var(--border, #334155);
+      min-height: 36px;
+    }
+    .toolbar-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent, #6366f1);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .toolbar-toggle-btn:hover { background: var(--accent-hover, #4f46e5); }
+    .toolbar-mini-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary, #94a3b8);
+      flex-wrap: wrap;
+    }
+    .toolbar-mini-info .mi-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    .toolbar-mini-info .mi-val {
+      color: var(--accent, #6366f1);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .toolbar-mini-info .mi-val.selected { color: var(--success, #22c55e); }
+    /* محتوى الأدوات القابل للطي */
+    .toolbar-collapsible {
+      overflow: hidden;
+      transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.2s ease;
+      max-height: 600px;
+      opacity: 1;
+      padding-top: 6px;
+    }
+    .toolbar-collapsible.collapsed {
+      max-height: 0;
+      opacity: 0;
+      padding-top: 0;
+      pointer-events: none;
+    }
+
+    /* ── عمود الجدول: يملأ الباقي، scroll أفقي فقط — العمودي على tablewrap ── */
+    .pp-table-card {
+      flex: 1 !important;
+      min-width: 0 !important;
+      height: 100% !important;
+      overflow-x: hidden !important;
+      overflow-y: hidden !important;
+      box-sizing: border-box !important;
+      border-radius: 0 !important;
+      border: none !important;
+      margin: 0 !important;
+      padding: 1rem !important;
+      min-height: unset !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+
+    /* ── tablewrap يأخذ المساحة المتبقية ويكون مصدر الـ scroll ── */
+    .pp-table-card .tablewrap {
+      flex: 1 !important;
+      overflow-x: auto !important;
+      overflow-y: auto !important;
+      min-height: 0 !important;
+    }
+
+    /* ── رأس الجدول يتثبت عند أعلى tablewrap ── */
+    .pp-table-card #mainTable thead th {
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 10 !important;
+    }
+
+    /* زر إخفاء/إظهار الحقول */
+    .sidebar-toggle-btn {
+      position: relative;
+      top: unset;
+      z-index: unset;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: inherit;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+      margin-bottom: 8px;
+    }
+    .sidebar-toggle-btn:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .sidebar-toggle-btn i {
+      font-size: 13px;
+      transition: transform 0.2s;
+    }
+    .pp-grid.sidebar-hidden .sidebar-toggle-btn i {
+      transform: scaleX(-1);
+    }
+
+    /* ── الفاصل القابل للسحب بين الحقول والجدول ── */
+    .pp-resizer {
+      width: 6px;
+      min-width: 6px;
+      flex-shrink: 0;
+      height: 100%;
+      background: var(--border);
+      cursor: col-resize;
+      position: relative;
+      z-index: 10;
+      transition: background 0.15s, width 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pp-resizer:hover,
+    .pp-resizer.dragging {
+      background: var(--accent);
+      width: 8px;
+      min-width: 8px;
+    }
+    /* نقاط الجريب في المنتصف */
+    .pp-resizer::before {
+      content: "";
+      display: block;
+      width: 4px;
+      height: 48px;
+      border-radius: 4px;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(255,255,255,0.45) 3px,
+        rgba(255,255,255,0.45) 5px
+      );
+      opacity: 0;
+      transition: opacity 0.15s;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .pp-resizer:hover::before,
+    .pp-resizer.dragging::before {
+      opacity: 1;
+    }
+    /* منع تحديد النص أثناء السحب */
+    body.is-resizing {
+      user-select: none !important;
+      cursor: col-resize !important;
+    }
+    body.is-resizing * {
+      cursor: col-resize !important;
+    }
+    /* إخفاء الفاصل عند sidebar-hidden */
+    .pp-grid.sidebar-hidden .pp-resizer {
+      display: none !important;
+    }
+
+    /* عدم تطبيق !important على pp-form-card عند الـ resize (يتحكم JS) */
+    .pp-form-card.user-resized {
+      transition: none !important;
+    }
+
+    @media (max-width: 900px) {
+      .pp-resizer { display: none !important; }
+    }
+    }
+    @media (max-width: 900px) {
+      .pp-grid {
+        flex-direction: column !important;
+        height: auto !important;
+        overflow: visible !important;
+      }
+      .pp-form-card {
+        width: 100% !important;
+        min-width: unset !important;
+        max-width: 100% !important;
+        height: auto !important;
+        border-left: none !important;
+        border-bottom: 2px solid var(--border) !important;
+      }
+      .pp-table-card {
+        height: auto !important;
+        overflow-x: auto !important;
+        min-height: 50vh !important;
+      }
+    }
+
+    /* Make table card fill remaining height */
+    /* (تم الاستغناء عنها) */
+
+    /* ── زر تبديل النموذج/الجدول على الموبايل ── */
+    .mobile-toggle-bar {
+      display: none;
+    }
+    @media (max-width: 900px) {
+      .mobile-toggle-bar {
+        display: flex;
+        gap: 0;
+        background: var(--bg-card);
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 0.75rem;
+      }
+      .mob-tab-btn {
+        flex: 1;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        font-family: inherit;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+      }
+      .mob-tab-btn.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      .sidebar-toggle-btn { display: none; }
+    }
+
+    /* إخفاء/إظهار أقسام على الموبايل */
+    @media (max-width: 900px) {
+      .pp-grid > .card.pp-form-card.mob-hidden { display: none; }
+      .pp-grid > .card.pp-table-card.mob-hidden { display: none; }
+    }
+    /* ── زر العودة للأعلى ── */
+    #scrollToTopBtn {
+      position: fixed;
+      bottom: 28px;
+      left: 28px;      /* يسار لأن الصفحة RTL */
+      z-index: 9999;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(99,102,241,0.45), 0 2px 6px rgba(0,0,0,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      opacity: 0;
+      transform: translateY(20px) scale(0.85);
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease, background 0.15s;
+    }
+    #scrollToTopBtn.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+    #scrollToTopBtn:hover {
+      background: var(--accent-hover, #4f46e5);
+      box-shadow: 0 6px 24px rgba(99,102,241,0.6);
+      transform: translateY(-2px) scale(1.07);
+    }
+    #scrollToTopBtn:active {
+      transform: scale(0.95);
+    }
+    /* tooltip */
+    #scrollToTopBtn::after {
+      content: "أعلى الصفحة";
+      position: absolute;
+      left: calc(100% + 10px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      padding: 5px 10px;
+      border-radius: 6px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    #scrollToTopBtn:hover::after {
+      opacity: 1;
+    }
+
+  </style>
+</head>
+
+<body>
+  <!-- Top Bar -->
+  <div class="pp-topbar">
+    <div class="pp-topbar-left">
+      <a href="index.html" class="pp-back-btn" title="العودة للصفحة الرئيسية">
+        <i class="fas fa-arrow-right"></i> الرئيسية
+      </a>
+      <div class="pp-panel-title">
+        <i class="fas fa-table-list"></i>
+        <span id="ppPanelTitle">جارٍ التحميل…</span>
+      </div>
+    </div>
+    <div class="pp-topbar-right">
+      <!-- معلومات المستخدم وأزرار الحساب -->
+      <span id="_authUserName" style="font-size:0.8rem;color:var(--text-muted,#94a3b8);padding:0 0.4rem"></span>
+      <a href="/dashboard.html" style="font-size:0.78rem;padding:4px 10px;background:rgba(59,130,246,0.15);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);border-radius:6px;text-decoration:none">
+        <i class="fas fa-chart-pie"></i> الإحصائيات
+      </a>
+      <a id="_adminPanelBtn" href="/admin.html" style="display:none;font-size:0.78rem;padding:4px 10px;background:rgba(124,58,237,0.2);color:#a78bfa;border:1px solid rgba(124,58,237,0.4);border-radius:6px;text-decoration:none">
+        <i class="fas fa-shield-alt"></i> لوحة التحكم
+      </a>
+      <button onclick="authLogout()" title="تسجيل الخروج" style="font-size:0.78rem;padding:4px 10px;background:rgba(239,68,68,0.1);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);border-radius:6px;cursor:pointer;font-family:inherit">
+        <i class="fas fa-sign-out-alt"></i> خروج
+      </button>
+      <button class="theme-toggle" id="themeToggle" title="تبديل الثيم">
+        <i class="fas fa-moon"></i>
+        <span id="themeText">الوضع الليلي</span>
+      </button>
+      <div class="chip" id="status">
+        <i class="fas fa-circle-check"></i>
+        <span>جاهز</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- شريط اللوحات الأفقي -->
+  <div class="panels-nav">
+    <div class="panels-nav-inner" id="panelsNavInner"><!-- تُبنى بـ JS --></div>
+  </div>
+
+  <div class="panel-page-wrap">
+
+    <!-- شريط تبديل النموذج/الجدول (موبايل فقط) -->
+    <div class="mobile-toggle-bar" id="mobileToggleBar">
+      <button class="mob-tab-btn" id="mobTabTable" onclick="showMobTab('table')">
+        <i class="fas fa-table"></i> الجدول
+      </button>
+      <button class="mob-tab-btn active" id="mobTabForm" onclick="showMobTab('form')">
+        <i class="fas fa-edit"></i> النموذج
+      </button>
+    </div>
+
+    <div class="pp-grid">
+
+      <!-- ── LEFT: Form ──────────────────────────────────── -->
+      <div class="card pp-form-card">
+
+        <!-- بحث سريع -->
+        <div style="margin-bottom:14px">
+          <label><i class="fas fa-search"></i> بحث سريع</label>
+          <div style="margin-top:8px">
+            <select id="searchColumn"
+              style="width:100%;padding:10px;margin-bottom:8px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary)">
+              <option value="">كل الأعمدة</option>
+            </select>
+            <input id="quickSearch" type="text" placeholder="اكتب أي كلمة أو رقم…"
+              style="width:100%;padding:10px;margin-bottom:8px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary)" />
+            <div style="display:flex;gap:8px">
+              <button id="btnSearch" class="success" style="flex:1;padding:10px;font-size:13px">
+                <i class="fas fa-search"></i> بحث
+              </button>
+              <button id="btnClearSearch" title="إلغاء البحث" style="padding:10px 14px;font-size:13px;background:var(--danger,#ef4444);color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- فلتر خاص بلوحة القيود المستحقة (يظهر فقط في combined_entries) -->
+        <div id="combinedEntriesFilterBar" style="display:none;margin-bottom:14px;">
+          <label><i class="fas fa-filter"></i> فلتر لوحة القيود المستحقة</label>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            <select id="ceEntryTypeFilter"
+              style="width:100%;padding:9px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);">
+              <option value="جميع القيود">جميع القيود</option>
+              <option value="القيود المفردة">القيود المفردة</option>
+              <option value="القيود المجمعة">القيود المجمعة</option>
+              <option value="غير المحاسب عليها">⚠️ غير المحاسب عليها</option>
+              <option value="المحاسب جزئياً">🔶 المحاسب جزئياً</option>
+              <option value="المحاسب عليها بالكامل">✅ المحاسب عليها بالكامل</option>
+            </select>
+            <input id="ceYearFilter" type="text" placeholder="فلتر بالسنة (مثال: 2024)"
+              style="width:100%;padding:9px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);" />
+            <input id="ceMonthFilter" type="text" placeholder="فلتر بالشهر (1-12)"
+              style="width:100%;padding:9px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);" />
+            <button id="btnCeFilterApply" class="success" style="padding:9px;font-size:13px;">
+              <i class="fas fa-filter"></i> تطبيق الفلتر
+            </button>
+            <button id="btnCeFilterClear" class="secondary" style="padding:9px;font-size:13px;">
+              <i class="fas fa-times"></i> مسح الفلتر
+            </button>
+          </div>
+        </div>
+
+        <!-- فلتر خاص بصندوق دفع حركات السيارات (يظهر فقط في car_payment_cashbox) -->
+        <div id="paymentCashboxFilterBar" style="display:none;margin-bottom:14px;">
+          <label><i class="fas fa-wallet"></i> فلتر الصندوق</label>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            <select id="pcStatusFilter"
+              style="width:100%;padding:9px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);">
+              <option value="الكل">📋 الكل</option>
+              <option value="غير المدفوعة">⚠️ غير المدفوعة</option>
+              <option value="المدفوعة جزئياً">🔶 المدفوعة جزئياً</option>
+              <option value="المدفوعة بالكامل">✅ المدفوعة بالكامل</option>
+              <option value="بها مبلغ مدفوع">💰 بها مبلغ مدفوع (كامل+جزئي)</option>
+            </select>
+            <input id="pcYearFilter" type="text" placeholder="فلتر بسنة الدفع (مثال: 2024)"
+              style="width:100%;padding:9px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);" />
+            <input id="pcMonthFilter" type="text" placeholder="فلتر بشهر الدفع (1-12)"
+              style="width:100%;padding:9px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);" />
+            <input id="pcPartyFilter" type="text" placeholder="فلتر بجهة التحاسب"
+              style="width:100%;padding:9px;font-size:13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);" />
+            <button id="btnPcFilterApply" class="success" style="padding:9px;font-size:13px;">
+              <i class="fas fa-filter"></i> تطبيق الفلتر
+            </button>
+            <button id="btnPcFilterClear" class="secondary" style="padding:9px;font-size:13px;">
+              <i class="fas fa-times"></i> مسح الفلتر
+            </button>
+          </div>
+        </div>
+
+        <!-- إجراءات -->
+        <div style="margin-bottom:14px">
+          <label><i class="fas fa-database"></i> إجراءات</label>
+          <div class="btns2" style="margin-top:8px">
+            <button class="secondary" id="btnBackupAll">
+              <i class="fas fa-download"></i> حفظ JSON (كل)
+            </button>
+            <button class="secondary" id="btnRestoreAll">
+              <i class="fas fa-upload"></i> استيراد JSON
+            </button>
+          </div>
+          <div class="btns2" style="margin-top:8px">
+            <button class="secondary" id="btnExportAllExcel">
+              <i class="fas fa-file-excel"></i> تنزيل Excel
+            </button>
+            <button class="secondary" id="btnImportExcel">
+              <i class="fas fa-file-import"></i> رفع Excel
+            </button>
+          </div>
+          <input type="file" id="allJsonInput" accept=".json" style="display:none"/>
+          <input type="file" id="excelInput" accept=".xlsx,.xls" style="display:none"/>
+        </div>
+
+        <hr class="hr"/>
+
+        <div class="pill" id="panelTitle">—</div>
+        <div id="formArea"></div>
+
+        <div class="btns3">
+          <button class="secondary" id="btnNew">
+            <i class="fas fa-file-circle-plus"></i> جديد
+          </button>
+          <button class="success" id="btnSave">
+            <i class="fas fa-floppy-disk"></i> حفظ
+          </button>
+          <button class="danger" id="btnDelete">
+            <i class="fas fa-trash-can"></i> حذف
+          </button>
+          <button class="danger" id="btnDismantleEntry" style="display:none;background:#b45309;border-color:#b45309;">
+            <i class="fas fa-link-slash"></i> تفكيك القيد
+          </button>
+        </div>
+
+        <div class="small" id="formHint">
+          اختر صفًا من الجدول لتعديله، أو أدخل البيانات واضغط "حفظ".
+        </div>
+
+        <details>
+          <summary><i class="fas fa-file-export"></i> تصدير/طباعة</summary>
+          <div class="btns3" style="margin-top:10px">
+            <button class="secondary" id="btnExportExcel">
+              <i class="fas fa-file-excel"></i> Excel
+            </button>
+            <button class="secondary" id="btnExportPDF">
+              <i class="fas fa-file-pdf"></i> PDF
+            </button>
+            <button class="secondary" id="btnPrint">
+              <i class="fas fa-print"></i> طباعة
+            </button>
+          </div>
+        </details>
+
+        <details>
+          <summary><i class="fas fa-file-code"></i> JSON (لوحة واحدة)</summary>
+          <div class="btns2" style="margin-top:10px">
+            <button class="secondary" id="btnSaveJson">
+              <i class="fas fa-download"></i> حفظ JSON
+            </button>
+            <button class="secondary" id="btnLoadJson">
+              <i class="fas fa-upload"></i> استيراد JSON
+            </button>
+          </div>
+          <input type="file" id="jsonInput" accept=".json" style="display:none"/>
+        </details>
+      </div>
+
+      <!-- ── RESIZER: فاصل قابل للسحب ──────────────────── -->
+      <div class="pp-resizer" id="ppResizer" title="اسحب لتغيير عرض الحقول"></div>
+
+      <!-- ── RIGHT: Table + Report ───────────────────────── -->
+      <div class="card pp-table-card">
+
+        <!-- ── شريط الأدوات الثابت عند التمرير ── -->
+        <div class="table-toolbar-sticky" id="tableToolbarSticky">
+
+        <!-- ── شريط التبديل الدائم الظهور ── -->
+        <div class="toolbar-toggle-bar">
+          <button class="toolbar-toggle-btn" id="toolbarToggleBtn" onclick="toggleToolbar()">
+            <i class="fas fa-sliders" id="toolbarToggleIcon"></i>
+            <span id="toolbarToggleText">إخفاء الأدوات</span>
+          </button>
+          <div class="toolbar-mini-info">
+            <div class="mi-item">
+              <i class="fas fa-list" style="color:var(--accent)"></i>
+              <span>السجلات:</span>
+              <span class="mi-val" id="kpiCountMini">0</span>
+            </div>
+            <div class="mi-item">
+              <i class="fas fa-check-square" style="color:var(--success,#22c55e)"></i>
+              <span>محدد:</span>
+              <span class="mi-val selected" id="kpiSelectedMini">0</span>
+            </div>
+            <div class="mi-item" id="dbHintMini" style="color:#22c55e;font-weight:700;font-size:12px">جاهز ✅</div>
+          </div>
+          <!-- أزرار الإجراء السريع دائمة الظهور -->
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="success" id="btnCreateSingleEntryMini" style="display:none;padding:4px 10px;font-size:12px"
+              onclick="createManualSingleEntry()" title="إنشاء قيد مفرد">
+              <i class="fas fa-file-circle-plus"></i>
+            </button>
+            <button class="success" id="btnCreateCombinedEntryMini" style="display:none;padding:4px 10px;font-size:12px"
+              onclick="createManualCombinedEntry()" title="إنشاء قيد مجمع">
+              <i class="fas fa-layer-group"></i>
+            </button>
+            <button class="secondary" id="btnClearSelectMini" style="padding:4px 10px;font-size:12px"
+              title="إلغاء التحديد">
+              <i class="fas fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- ── المحتوى القابل للطي ── -->
+        <div class="toolbar-collapsible" id="toolbarCollapsible">
+
+        <!-- زر إخفاء/إظهار الحقول -->
+        <button class="sidebar-toggle-btn" id="btnToggleSidebar" onclick="toggleSidebar()" title="إخفاء / إظهار الحقول">
+          <i class="fas fa-table-columns" id="sidebarToggleIcon"></i>
+          <span id="sidebarToggleText">إخفاء الحقول</span>
+        </button>
+
+        <!-- أدوات الجدول -->
+        <div class="row" style="align-items:end;margin-bottom:10px">
+          <div style="position:relative">
+            <label><i class="fas fa-eye"></i> عرض الأعمدة</label>
+            <div id="colPickerBtn" class="col-picker-btn" onclick="toggleColPicker()">
+              <span id="colPickerLabel">كامل</span>
+              <i class="fas fa-chevron-down" style="font-size:0.75rem;opacity:0.7"></i>
+            </div>
+            <div id="colPickerDropdown" class="col-picker-dropdown" style="display:none">
+              <div class="col-picker-actions">
+                <button onclick="colPickerSelectAll()" class="col-picker-action-btn">
+                  <i class="fas fa-check-double"></i> إظهار الكل
+                </button>
+                <button onclick="colPickerSelectCompact()" class="col-picker-action-btn secondary-btn">
+                  <i class="fas fa-compress"></i> مختصر
+                </button>
+              </div>
+              <div id="colPickerList" class="col-picker-list"></div>
+            </div>
+          </div>
+          <div>
+            <label><i class="fas fa-chart-bar"></i> تقرير سريع</label>
+            <div class="btns2" style="margin-top:0">
+              <button class="primary" id="btnMakeReport">
+                <i class="fas fa-file-lines"></i> توليد تقرير
+              </button>
+              <!-- زر إنشاء قيد مفرد — يظهر فقط في لوحة احتساب أجرة السيارات عند تحديد سجل واحد -->
+              <button class="success" id="btnCreateSingleEntry" style="display:none"
+                onclick="createManualSingleEntry()"
+                title="أنشئ قيداً مفرداً للسجل المحدد">
+                <i class="fas fa-file-circle-plus"></i> إنشاء قيد مفرد
+              </button>
+              <!-- زر إنشاء قيد مجمع — يظهر فقط في لوحة احتساب أجرة السيارات -->
+              <button class="success" id="btnCreateCombinedEntry" style="display:none"
+                onclick="createManualCombinedEntry()"
+                title="أنشئ قيداً مجمعاً من السجلات المحددة">
+                <i class="fas fa-layer-group"></i> إنشاء قيد مجمع
+              </button>
+              <!-- زر الممكن تجميعه — يظهر فقط في لوحة احتساب أجرة السيارات -->
+              <button class="secondary" id="btnGroupable" style="display:none"
+                onclick="toggleGroupableView()"
+                title="اعرض السجلات مرتبةً حسب جهة التحاسب وجهة الاستفادة مع تلوين كل مجموعة">
+                <i class="fas fa-object-group"></i> <span id="btnGroupableLabel">الممكن تجميعه</span>
+              </button>
+              <button class="secondary" id="btnClearSelect">
+                <i class="fas fa-xmark"></i> إلغاء تحديد
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI -->
+        <div class="kpi">
+          <div class="k">
+            <div class="t"><i class="fas fa-list"></i> عدد السجلات</div>
+            <div class="v" id="kpiCount">0</div>
+          </div>
+          <div class="k">
+            <div class="t"><i class="fas fa-check-square"></i> محدد</div>
+            <div class="v" id="kpiSelected" style="color:var(--success)">0</div>
+          </div>
+          <div class="k">
+            <div class="t"><i class="fas fa-microchip"></i> حالة النظام</div>
+            <div class="v" style="font-size:13px;font-weight:700" id="dbHint">جاهز ✅</div>
+          </div>
+        </div>
+
+        <!-- شريط البحث السريع -->
+
+        <!-- شريط الفلترة والترتيب -->
+        <div class="sort-filter-bar" id="sortFilterBar">
+          <div class="sfb-group">
+            <span class="sfb-label"><i class="fas fa-sort"></i> ترتيب</span>
+            <select id="sortColSel" class="sfb-select">
+              <option value="">— بدون ترتيب —</option>
+            </select>
+            <button id="sortDirBtn" class="sfb-dir-btn" onclick="toggleSortDir()">
+              <i class="fas fa-arrow-down-wide-short"></i>
+              <span id="sortDirLabel">تنازلي</span>
+            </button>
+          </div>
+          <div class="sfb-group">
+            <span class="sfb-label"><i class="fas fa-filter"></i> فلتر</span>
+            <select id="filterColSel" class="sfb-select" onchange="onFilterColChange()">
+              <option value="">— اختر عمود —</option>
+            </select>
+            <div id="filterValWrap" class="sfb-val-wrap" style="display:none">
+              <input id="filterValText" type="text" class="sfb-input" placeholder="قيمة الفلتر…"
+                     oninput="applyTableFilters()" style="display:none"/>
+              <select id="filterValSelect" class="sfb-select" onchange="applyTableFilters()"
+                      style="display:none;min-width:130px">
+                <option value="">— الكل —</option>
+              </select>
+              <input id="filterDateFrom" type="date" class="sfb-input sfb-date"
+                     oninput="applyTableFilters()" style="display:none"/>
+              <input id="filterDateTo"   type="date" class="sfb-input sfb-date"
+                     oninput="applyTableFilters()" style="display:none"/>
+            </div>
+          </div>
+          <div class="sfb-actions">
+            <button class="sfb-apply-btn" onclick="applyTableFilters()">
+              <i class="fas fa-check"></i> تطبيق
+            </button>
+            <button class="sfb-clear-btn" onclick="clearTableFilters()">
+              <i class="fas fa-times"></i> مسح
+            </button>
+          </div>
+          <div id="sfbResultBadge" class="sfb-badge" style="display:none"></div>
+        </div>
+
+        </div><!-- /.toolbar-collapsible -->
+
+        </div><!-- /.table-toolbar-sticky -->
+
+        <!-- الجدول -->
+        <div class="tablewrap">
+          <table id="mainTable">
+            <thead><tr id="theadRow"></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- سطر مجموع لوحة احتساب أجرة السيارات عند تفعيل فلتر القيد -->
+        <div id="billingFilterSummary" style="
+          display:none;
+          flex-wrap:wrap;
+          gap:12px;
+          align-items:center;
+          padding:14px 20px;
+          margin:8px 0;
+          background:var(--card);
+          border:2px solid var(--border);
+          border-radius:12px;
+          font-size:15px;
+          direction:rtl;
+          box-shadow:0 2px 8px rgba(0,0,0,0.15);
+        "></div>
+
+        <!-- سطر مجموع لوحة القيود المستحقة -->
+        <div id="combinedEntriesSummary" style="
+          display:none;
+          flex-wrap:wrap;
+          gap:12px;
+          align-items:center;
+          padding:14px 20px;
+          margin:8px 0;
+          background:var(--card);
+          border:2px solid var(--border);
+          border-radius:12px;
+          font-size:15px;
+          direction:rtl;
+          box-shadow:0 2px 8px rgba(0,0,0,0.15);
+        "></div>
+
+        <!-- سطر مجموع صندوق دفع حركات السيارات -->
+        <div id="paymentCashboxSummary" style="
+          display:none;
+          flex-wrap:wrap;
+          gap:10px;
+          align-items:center;
+          padding:12px 18px;
+          margin:8px 0;
+          background:var(--card);
+          border:2px solid var(--border);
+          border-radius:12px;
+          font-size:14px;
+          direction:rtl;
+          box-shadow:0 2px 8px rgba(0,0,0,0.15);
+        "></div>
+
+        <!-- التقرير -->
+        <div id="report" class="report">
+          <h2 id="reportTitle">تقرير</h2>
+          <div class="meta" id="reportMeta"></div>
+          <div id="reportBody"></div>
+          <div class="totals" id="reportTotals"></div>
+        </div>
+      </div>
+
+    </div><!-- /.pp-grid -->
+  </div><!-- /.panel-page-wrap -->
+
+  <!-- Toast -->
+  <div id="toastContainer"></div>
+
+  <!-- زر العودة للأعلى -->
+  <button id="scrollToTopBtn" title="العودة للأعلى" onclick="scrollToPageTop()">
+    <i class="fas fa-arrow-up"></i>
+  </button>
+
+  <!-- JS — نفس الترتيب تمامًا -->
+  <script src="js/auth.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/seed_demo.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/form.js"></script>
+  <script src="js/table.js"></script>
+  <script src="js/crud.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/export.js"></script>
+
+  <!-- بوت الصفحة المستقلة -->
+  <script>
+    // ── قراءة مفتاح اللوحة من URL (?panel=trucks) ──────────
+    const _urlParams   = new URLSearchParams(location.search);
+    const _panelKeyArg = _urlParams.get("panel") || (PANELS[0] && PANELS[0].key);
+
+    // تعيين اللوحة النشطة قبل أي شيء
+    window.activeKey            = _panelKeyArg;
+    window.selectedId           = null;
+    window.__convoy_trucks      = [];
+    // ── رقم الحركة المطلوب تمييزه (يأتي من لوحة احتساب أجرة السيارات) ──
+    window._highlightMovementNo = _urlParams.get("highlight") || null;
+    // ── فلتر سجلات القيد (يأتي من لوحة القيود المستحقة عند النقر على كود القيد) ──
+    (function readBillingFilter() {
+      const bfType = _urlParams.get("bf_type");
+      if (!bfType) { window._billingFilter = null; return; }
+      if (bfType === "single") {
+        window._billingFilter = {
+          type:        "single",
+          movementNo:  _urlParams.get("bf_movementNo") || "",
+          label:       _urlParams.get("bf_label")      || ""
+        };
+      } else if (bfType === "custom") {
+        window._billingFilter = {
+          type:       "custom",
+          billingIds: _urlParams.get("bf_ids")   || "",
+          label:      _urlParams.get("bf_label") || ""
+        };
+      } else {
+        window._billingFilter = {
+          type:            "group",
+          accountingParty: _urlParams.get("bf_party")       || "",
+          beneficiaryName: _urlParams.get("bf_beneficiary") || "",
+          label:           _urlParams.get("bf_label")       || ""
+        };
+      }
+    })();
+
+    // ── فلتر القيود (ef_entryNo): يأتي من لوحة احتساب أجرة السيارات عند النقر على رقم القيد ──
+    (function readEntryFilter() {
+      const efEntryNo = _urlParams.get("ef_entryNo");
+      if (!efEntryNo) { window._entryFilter = null; return; }
+      window._entryFilter = { entryNo: efEntryNo };
+    })();
+
+    // ── دوال مساعدة مطلوبة من main.js ────────────────────
+    function renderTabs() { /* لا تبويبات في هذه الصفحة */ }
+
+    async function renderAll() {
+      await renderForm();
+      const panel = currentPanel();
+      if (panel && typeof initSortFilterBar === "function") initSortFilterBar(panel);
+      await renderTable();
+    }
+
+    // ── تحميل الصفحة ──────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        // تطبيق الثيم
+        initTheme();
+
+        // بناء شريط اللوحات الأفقي
+        (function buildPanelsNav() {
+          const nav = document.getElementById("panelsNavInner");
+          if (!nav || typeof PANELS === "undefined") return;
+
+          // انتظر حتى يتم تحميل بيانات المستخدم ثم ابنِ القائمة
+          function doBuild() {
+            const allowedPanels = window._allowedPanels || null; // null = الكل مسموح
+            nav.innerHTML = '';
+            PANELS.forEach(p => {
+              // إذا كانت هناك قيود على اللوحات، تحقق منها
+              if (allowedPanels && !allowedPanels.includes(p.key)) return;
+              const btn = document.createElement("a");
+              btn.className = "pnav-btn" + (p.key === window.activeKey ? " active" : "");
+              btn.href = `panel.html?panel=${encodeURIComponent(p.key)}`;
+              btn.title = p.title;
+              // عنوان مختصر (أزل "(Local)" وما شابه)
+              const short = p.title.replace(/\s*\(.*?\)/g, "").replace("لوحة إدخال ", "").trim();
+              btn.textContent = short;
+              nav.appendChild(btn);
+            });
+
+            // إذا اللوحة الحالية ليست مسموحاً بها، انتقل إلى أول لوحة مسموح بها
+            if (allowedPanels && window.activeKey && !allowedPanels.includes(window.activeKey)) {
+              const firstAllowed = PANELS.find(p => allowedPanels.includes(p.key));
+              if (firstAllowed) {
+                location.href = `panel.html?panel=${encodeURIComponent(firstAllowed.key)}`;
+              }
+            }
+          }
+
+          // إذا كانت بيانات المستخدم جاهزة، ابنِ مباشرة
+          // وإلا انتظر حتى تنتهي checkAuth
+          if (window._authReady) {
+            window._authReady.then(doBuild).catch(doBuild);
+          } else {
+            doBuild();
+          }
+        })();
+
+        // عنوان الصفحة
+        const panel = currentPanel();
+        if (panel) {
+          document.title = panel.title;
+          document.getElementById("ppPanelTitle").textContent = panel.title;
+        }
+
+        // Excel
+        if (typeof exportCurrentPanelExcel === "function")
+          $("btnExportAllExcel").onclick = exportCurrentPanelExcel;
+        if (typeof importExcelToPanel === "function") {
+          $("btnImportExcel").onclick = () => $("excelInput").click();
+          $("excelInput").addEventListener("change", e => {
+            const f = e.target.files?.[0];
+            if (f) { importExcelToPanel(f); e.target.value = ""; }
+          });
+        }
+
+        // بحث
+        const ip = currentPanel();
+        if (ip && typeof updateSearchColumnOptions === "function")
+          updateSearchColumnOptions(ip);
+
+        // إظهار/إخفاء زر الإلغاء
+        function syncClearBtn() {
+          const hasVal = $("quickSearch").value.trim() !== "";
+          $("btnClearSearch").style.display = hasVal ? "inline-flex" : "none";
+          $("btnClearSearch").style.alignItems = "center";
+          $("btnClearSearch").style.justifyContent = "center";
+        }
+
+        $("btnSearch").addEventListener("click", () => renderTable());
+
+        $("btnClearSearch").addEventListener("click", () => {
+          $("quickSearch").value = "";
+          $("searchColumn").value = "";
+          syncClearBtn();
+          renderTable();
+        });
+
+        $("quickSearch").addEventListener("input", syncClearBtn);
+
+        $("quickSearch").addEventListener("keypress", e => {
+          if (e.key === "Enter") renderTable();
+        });
+
+        $("searchColumn").addEventListener("change", () => {
+          if ($("quickSearch").value.trim()) renderTable();
+        });
+
+        // ── تهيئة البيانات الافتراضية للوحات التي تحتوي defaults ──
+        (function seedPanelDefaults() {
+          if (typeof PANELS === "undefined" || typeof savePanelLocal === "undefined") return;
+          PANELS.forEach(p => {
+            if (!p.defaults || !p.defaults.length) return;
+            const existing = loadPanelLocal(p.key);
+            if (existing.length === 0) {
+              // أضف معرّف تلقائي لكل صف افتراضي
+              const seeded = p.defaults.map((row, i) => {
+                const genId = "default_" + i + "_" + p.key;
+                return Object.assign({}, row, {
+                  id:   genId,
+                  _id:  genId,
+                  _seq: i + 1
+                });
+              });
+              savePanelLocal(p.key, seeded);
+            } else if (p.key === "car_rates") {
+              // أضف أنواع السيارات الجديدة إذا لم تكن موجودة
+              const existingTypes = new Set(existing.map(r => r.carType || ""));
+              const missing = p.defaults.filter(d => d.carType && !existingTypes.has(d.carType));
+              if (missing.length > 0) {
+                const maxSeq = existing.reduce((m, r) => Math.max(m, r._seq || 0), 0);
+                const newRows = missing.map((row, i) => {
+                  const genId = "default_extra_" + i + "_" + Date.now();
+                  return Object.assign({}, row, {
+                    id:   genId,
+                    _id:  genId,
+                    _seq: maxSeq + i + 1
+                  });
+                });
+                savePanelLocal(p.key, [...existing, ...newRows]);
+              }
+              // ── ترحيل الحقول الجديدة (halfDayRate, quickMissionRate) على السجلات القديمة ──
+              const defaultsMap = {};
+              p.defaults.forEach(d => { if (d.carType) defaultsMap[d.carType] = d; });
+              let needsSave = false;
+              const migrated = loadPanelLocal(p.key).map(r => {
+                const def = defaultsMap[(r.carType || "").trim()];
+                let changed = false;
+                if (def) {
+                  // أضف halfDayRate إذا لم يكن موجوداً
+                  if (!r.halfDayRate && def.halfDayRate) {
+                    r = Object.assign({}, r, { halfDayRate: def.halfDayRate });
+                    changed = true;
+                  }
+                  // أضف quickMissionRate إذا لم يكن موجوداً
+                  if (!r.quickMissionRate && def.quickMissionRate) {
+                    r = Object.assign({}, r, { quickMissionRate: def.quickMissionRate });
+                    changed = true;
+                  }
+                } else if (!r.halfDayRate || !r.quickMissionRate) {
+                  // سجل مخصص بدون ثابت: احسب القيم تلقائياً من fullDayRate
+                  const full = parseFloat(r.fullDayRate) || 0;
+                  const updates = {};
+                  if (!r.halfDayRate && full > 0)         updates.halfDayRate      = String(Math.round(full / 2));
+                  if (!r.quickMissionRate && full > 0)    updates.quickMissionRate = String(Math.round(full / 4));
+                  if (Object.keys(updates).length) { r = Object.assign({}, r, updates); changed = true; }
+                }
+                if (changed) needsSave = true;
+                return r;
+              });
+              if (needsSave) savePanelLocal(p.key, migrated);
+            }
+          });
+        })();
+
+        // تشغيل
+        await renderAll();
+        setStatus("جاهز ✅ (Local)");
+        showToast("تم تحميل اللوحة بنجاح! 🎉", "success");
+
+        // ── التمرير إلى صف الحركة المُمَيَّز (إن وُجد) ──────────────
+        if (window._highlightMovementNo) {
+          setTimeout(() => {
+            const highlighted = document.querySelector("tr[data-highlighted='true']");
+            if (highlighted) {
+              highlighted.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }, 300);
+        }
+
+        // ── إظهار/إخفاء فلتر لوحة القيود المستحقة ──
+        const ceFilterBar = $("combinedEntriesFilterBar");
+        if (ceFilterBar) {
+          ceFilterBar.style.display = (window.activeKey === "combined_entries") ? "block" : "none";
+        }
+
+        // ── إظهار/إخفاء فلتر صندوق دفع حركات السيارات ──
+        const pcFilterBar = $("paymentCashboxFilterBar");
+        if (pcFilterBar) {
+          pcFilterBar.style.display = (window.activeKey === "car_payment_cashbox") ? "block" : "none";
+        }
+
+        // ── منطق فلتر لوحة القيود المستحقة ──
+        if (window.activeKey === "combined_entries") {
+          // مزامنة القيمة المحفوظة في قائمة الفلتر الجانبية
+          const ceTypeSel = $("ceEntryTypeFilter");
+          if (ceTypeSel && window._combinedEntriesFilter) {
+            ceTypeSel.value = window._combinedEntriesFilter;
+          }
+
+          // تغيير نوع القيد من الشريط الجانبي
+          if ($("ceEntryTypeFilter")) {
+            $("ceEntryTypeFilter").addEventListener("change", async () => {
+              window._combinedEntriesFilter = $("ceEntryTypeFilter").value || "جميع القيود";
+              window.selectedId = null;
+              // مزامنة مع حقل الفورم إذا كان مفتوحاً
+              const formSel = $("f_entryType");
+              if (formSel) formSel.value = window._combinedEntriesFilter;
+              await renderTable();
+            });
+          }
+
+          // فلتر السنة والشهر
+          window._ceYearFilter  = "";
+          window._ceMonthFilter = "";
+
+          if ($("btnCeFilterApply")) {
+            $("btnCeFilterApply").addEventListener("click", async () => {
+              window._ceYearFilter  = ($("ceYearFilter").value  || "").trim();
+              window._ceMonthFilter = ($("ceMonthFilter").value || "").trim();
+              await renderTable();
+            });
+          }
+          if ($("btnCeFilterClear")) {
+            $("btnCeFilterClear").addEventListener("click", async () => {
+              window._ceYearFilter  = "";
+              window._ceMonthFilter = "";
+              $("ceYearFilter").value  = "";
+              $("ceMonthFilter").value = "";
+              await renderTable();
+            });
+          }
+        }
+
+        // ── منطق فلتر صندوق دفع حركات السيارات ──
+        if (window.activeKey === "car_payment_cashbox") {
+          window._paymentCashboxFilter = window._paymentCashboxFilter || "الكل";
+          window._pcYearFilter  = window._pcYearFilter  || "";
+          window._pcMonthFilter = window._pcMonthFilter || "";
+          window._pcPartyFilter = window._pcPartyFilter || "";
+
+          const pcStatusSel = $("pcStatusFilter");
+          if (pcStatusSel && window._paymentCashboxFilter) {
+            pcStatusSel.value = window._paymentCashboxFilter;
+          }
+          if ($("pcStatusFilter")) {
+            $("pcStatusFilter").addEventListener("change", async () => {
+              window._paymentCashboxFilter = $("pcStatusFilter").value || "الكل";
+              window.selectedId = null;
+              await renderTable();
+            });
+          }
+          if ($("btnPcFilterApply")) {
+            $("btnPcFilterApply").addEventListener("click", async () => {
+              window._pcYearFilter  = ($("pcYearFilter").value  || "").trim();
+              window._pcMonthFilter = ($("pcMonthFilter").value || "").trim();
+              window._pcPartyFilter = ($("pcPartyFilter").value || "").trim();
+              await renderTable();
+            });
+          }
+          if ($("btnPcFilterClear")) {
+            $("btnPcFilterClear").addEventListener("click", async () => {
+              window._pcYearFilter  = "";
+              window._pcMonthFilter = "";
+              window._pcPartyFilter = "";
+              window._paymentCashboxFilter = "الكل";
+              if ($("pcYearFilter"))  $("pcYearFilter").value  = "";
+              if ($("pcMonthFilter")) $("pcMonthFilter").value = "";
+              if ($("pcPartyFilter")) $("pcPartyFilter").value = "";
+              if ($("pcStatusFilter")) $("pcStatusFilter").value = "الكل";
+              await renderTable();
+            });
+          }
+        }
+
+        // ── تهيئة شريط الموبايل ──
+        initMobileToggle();
+      } catch (e) {
+        console.error(e);
+        setStatus("خطأ ❌");
+        $("formArea").innerHTML =
+          `<div class="small dangerText"><i class="fas fa-triangle-exclamation"></i> خطأ: ${e.message}</div>`;
+        showToast("حدث خطأ أثناء التحميل", "error");
+      }
+    });
+
+    // ── زر العودة للأعلى ──
+    (function initScrollToTop() {
+      const btn = document.getElementById("scrollToTopBtn");
+      if (!btn) return;
+
+      // الـ containers التي قد يحدث فيها scroll
+      const scrollContainers = [
+        () => document.querySelector(".pp-table-card"),
+        () => document.querySelector(".pp-form-card"),
+        () => document.documentElement,
+        () => document.body
+      ];
+
+      function checkScroll() {
+        // تحقق من أي container فيه scroll
+        let anyScrolled = false;
+        scrollContainers.forEach(getFn => {
+          const el = getFn();
+          if (el && el.scrollTop > 180) anyScrolled = true;
+        });
+        if (window.scrollY > 180) anyScrolled = true;
+        btn.classList.toggle("visible", anyScrolled);
+      }
+
+      function attachListeners() {
+        // window scroll
+        window.addEventListener("scroll", checkScroll, { passive: true });
+        // المنطقتان الرئيسيتان
+        const tableCard = document.querySelector(".pp-table-card");
+        const formCard  = document.querySelector(".pp-form-card");
+        if (tableCard) tableCard.addEventListener("scroll", checkScroll, { passive: true });
+        if (formCard)  formCard.addEventListener("scroll",  checkScroll, { passive: true });
+        checkScroll();
+      }
+
+      // سجّل بعد بناء DOM
+      document.addEventListener("DOMContentLoaded", attachListeners);
+      // وبعد renderTable لو تغيّر المحتوى
+      const _origRender = window.renderTable;
+      if (typeof _origRender === "function") {
+        window.renderTable = async function(...args) {
+          const r = await _origRender.apply(this, args);
+          attachListeners();
+          return r;
+        };
+      }
+    })();
+
+    function scrollToPageTop() {
+      // اسكرول فوري لكل container
+      [
+        document.querySelector(".pp-table-card"),
+        document.querySelector(".pp-form-card"),
+        document.documentElement,
+        document.body
+      ].forEach(el => {
+        if (el) el.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function initMobileToggle() {
+      // عند الضغط على صف في الجدول على الموبايل، انتقل للنموذج
+      const origRenderTable = window.renderTable;
+      if (origRenderTable) {
+        // الاستماع لأحداث النقر على الصفوف
+        document.addEventListener("click", function(e) {
+          const row = e.target.closest("tbody tr");
+          if (row && window.innerWidth <= 900) {
+            // الانتقال للنموذج تلقائياً عند اختيار صف
+            setTimeout(() => showMobTab("form"), 50);
+          }
+        }, true);
+      }
+    }
+
+    function showMobTab(tab) {
+      const formCard  = document.querySelector(".pp-form-card");
+      const tableCard = document.querySelector(".pp-table-card");
+      const btnTable  = document.getElementById("mobTabTable");
+      const btnForm   = document.getElementById("mobTabForm");
+
+      if (!formCard || !tableCard) return;
+
+      if (tab === "table") {
+        formCard.classList.add("mob-hidden");
+        tableCard.classList.remove("mob-hidden");
+        btnTable.classList.add("active");
+        btnForm.classList.remove("active");
+      } else {
+        formCard.classList.remove("mob-hidden");
+        tableCard.classList.add("mob-hidden");
+        btnForm.classList.add("active");
+        btnTable.classList.remove("active");
+      }
+
+      // حفظ الحالة
+      window._mobActiveTab = tab;
+    }
+
+    // إعادة ضبط التبويبات عند تغيير حجم الشاشة
+    window.addEventListener("resize", function() {
+      if (window.innerWidth > 900) {
+        // شاشة كبيرة: أظهر كل شيء
+        const formCard  = document.querySelector(".pp-form-card");
+        const tableCard = document.querySelector(".pp-table-card");
+        if (formCard)  formCard.classList.remove("mob-hidden");
+        if (tableCard) tableCard.classList.remove("mob-hidden");
+      } else {
+        // موبايل: طبّق الحالة المحفوظة
+        const tab = window._mobActiveTab || "table";
+        showMobTab(tab);
+      }
+      // أعد حساب ارتفاعات الـ topbar و nav عند تغيير حجم النافذة
+      updateLayoutHeights();
+    });
+
+    // ── الفاصل القابل للسحب (Resizable Divider) ──
+    (function initResizer() {
+
+      const STORAGE_KEY  = "_formPanelWidth";
+      const MIN_WIDTH    = 220;   // أقل عرض للحقول (px)
+      const MAX_RATIO    = 0.55;  // أقصى نسبة من عرض الشاشة
+      const DEFAULT_WIDTH = 360;
+
+      const resizer  = document.getElementById("ppResizer");
+      const formCard = document.querySelector(".pp-form-card");
+      const grid     = document.querySelector(".pp-grid");
+
+      if (!resizer || !formCard || !grid) return;
+
+      // ── دالة تطبيق العرض ──
+      function applyWidth(w) {
+        const maxW = Math.floor(grid.getBoundingClientRect().width * MAX_RATIO);
+        w = Math.max(MIN_WIDTH, Math.min(w, maxW));
+
+        // ألغِ !important بتعيين style مباشر
+        formCard.style.setProperty("width",     w + "px", "important");
+        formCard.style.setProperty("min-width", w + "px", "important");
+        formCard.style.setProperty("max-width", w + "px", "important");
+        formCard.classList.add("user-resized");
+        return w;
+      }
+
+      // ── استعادة العرض المحفوظ ──
+      function restoreWidth() {
+        try {
+          const saved = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+          if (saved && saved >= MIN_WIDTH) applyWidth(saved);
+        } catch(e) {}
+      }
+
+      // ── حفظ العرض ──
+      function saveWidth(w) {
+        try { localStorage.setItem(STORAGE_KEY, w); } catch(e) {}
+      }
+
+      // ── منطق Mouse Drag ──
+      let isDragging = false;
+      let startX     = 0;
+      let startWidth = 0;
+
+      resizer.addEventListener("mousedown", function(e) {
+        if (e.button !== 0) return;          // يسار فقط
+        if (grid.classList.contains("sidebar-hidden")) return;
+
+        isDragging = true;
+        startX     = e.clientX;
+        startWidth = formCard.getBoundingClientRect().width;
+
+        resizer.classList.add("dragging");
+        document.body.classList.add("is-resizing");
+        formCard.classList.add("user-resized");   // أوقف transition فوراً
+
+        e.preventDefault();
+      });
+
+      document.addEventListener("mousemove", function(e) {
+        if (!isDragging) return;
+
+        // RTL: الحقول على اليمين، الجدول على اليسار
+        // السحب لليسار (x أقل) → تضييق الحقول
+        // السحب لليمين (x أكبر) → توسيع الحقول
+        const dx = e.clientX - startX;
+        const newW = startWidth - dx;   // عكس الحركة لأن RTL
+        applyWidth(newW);
+      });
+
+      document.addEventListener("mouseup", function(e) {
+        if (!isDragging) return;
+        isDragging = false;
+
+        resizer.classList.remove("dragging");
+        document.body.classList.remove("is-resizing");
+
+        const finalW = formCard.getBoundingClientRect().width;
+        saveWidth(finalW);
+      });
+
+      // ── منطق Touch (موبايل / تابلت) ──
+      resizer.addEventListener("touchstart", function(e) {
+        if (grid.classList.contains("sidebar-hidden")) return;
+        const touch = e.touches[0];
+        isDragging = true;
+        startX     = touch.clientX;
+        startWidth = formCard.getBoundingClientRect().width;
+        resizer.classList.add("dragging");
+        document.body.classList.add("is-resizing");
+        e.preventDefault();
+      }, { passive: false });
+
+      document.addEventListener("touchmove", function(e) {
+        if (!isDragging) return;
+        const touch = e.touches[0];
+        const dx  = touch.clientX - startX;
+        const newW = startWidth - dx;
+        applyWidth(newW);
+        e.preventDefault();
+      }, { passive: false });
+
+      document.addEventListener("touchend", function() {
+        if (!isDragging) return;
+        isDragging = false;
+        resizer.classList.remove("dragging");
+        document.body.classList.remove("is-resizing");
+        const finalW = formCard.getBoundingClientRect().width;
+        saveWidth(finalW);
+      });
+
+      // ── نقر مزدوج: إعادة الضبط للعرض الافتراضي ──
+      resizer.addEventListener("dblclick", function() {
+        formCard.classList.remove("user-resized");
+        formCard.style.removeProperty("width");
+        formCard.style.removeProperty("min-width");
+        formCard.style.removeProperty("max-width");
+        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+      });
+
+      // ── استعادة عند التحميل ──
+      document.addEventListener("DOMContentLoaded", restoreWidth);
+
+      // ── إعادة ضبط إذا أصبح العرض خارج الحدود عند resize الشاشة ──
+      window.addEventListener("resize", function() {
+        try {
+          const saved = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+          if (saved && saved >= MIN_WIDTH) applyWidth(saved);
+        } catch(e) {}
+      });
+
+    })();
+
+    // ── حساب ارتفاعات الـ topbar و nav وتعيينهم كـ CSS variables ──
+    function updateLayoutHeights() {
+      const topbar = document.querySelector(".pp-topbar");
+      const nav    = document.querySelector(".panels-nav");
+      const topbarH = topbar ? topbar.getBoundingClientRect().height : 56;
+      const navH    = nav    ? nav.getBoundingClientRect().height    : 44;
+      document.documentElement.style.setProperty("--topbar-h", topbarH + "px");
+      document.documentElement.style.setProperty("--nav-h",    navH    + "px");
+    }
+
+    // استدعاء بعد بناء DOM + بعد تحميل الصفحة الكامل
+    document.addEventListener("DOMContentLoaded", updateLayoutHeights);
+    window.addEventListener("load", updateLayoutHeights);
+
+    // ── دالة إخفاء / إظهار شريط الأدوات ──
+    let _toolbarVisible = true;
+    function toggleToolbar() {
+      const collapsible = document.getElementById("toolbarCollapsible");
+      const btn         = document.getElementById("toolbarToggleBtn");
+      const icon        = document.getElementById("toolbarToggleIcon");
+      const text        = document.getElementById("toolbarToggleText");
+      if (!collapsible) return;
+
+      _toolbarVisible = !_toolbarVisible;
+      collapsible.classList.toggle("collapsed", !_toolbarVisible);
+
+      if (_toolbarVisible) {
+        icon.className = "fas fa-sliders";
+        text.textContent = "إخفاء الأدوات";
+        btn.style.background = "";
+      } else {
+        icon.className = "fas fa-sliders";
+        text.textContent = "إظهار الأدوات";
+        btn.style.background = "var(--text-muted, #64748b)";
+      }
+      // إعادة حساب الارتفاعات بعد الطي
+      setTimeout(recalcHeights, 320);
+    }
+
+    // ── دالة إخفاء / إظهار عمود الحقول (sidebar) ──
+    function toggleSidebar() {
+      const grid       = document.querySelector(".pp-grid");
+      const formCard   = document.querySelector(".pp-form-card");
+      const resizer    = document.getElementById("ppResizer");
+      const toggleBtn  = document.getElementById("btnToggleSidebar");
+      const toggleText = document.getElementById("sidebarToggleText");
+      const toggleIcon = document.getElementById("sidebarToggleIcon");
+
+      if (!grid || !formCard) return;
+
+      const isHidden = grid.classList.toggle("sidebar-hidden");
+      formCard.classList.toggle("sidebar-hidden", isHidden);
+
+      if (isHidden) {
+        // ── إخفاء: أزل كل inline styles حتى يعمل CSS sidebar-hidden ──
+        formCard.style.removeProperty("width");
+        formCard.style.removeProperty("min-width");
+        formCard.style.removeProperty("max-width");
+        formCard.classList.remove("user-resized");
+
+        // أخفِ الفاصل
+        if (resizer) resizer.style.display = "none";
+
+        if (toggleText) toggleText.textContent = "إظهار الحقول";
+        if (toggleIcon) toggleIcon.className = "fas fa-expand";
+        if (toggleBtn) {
+          toggleBtn.title = "إظهار الحقول";
+          toggleBtn.style.background   = "var(--accent)";
+          toggleBtn.style.borderColor  = "var(--accent)";
+          toggleBtn.style.color        = "#fff";
+        }
+      } else {
+        // ── إظهار: استعد العرض المحفوظ إن وجد ──
+        if (resizer) resizer.style.display = "";
+
+        try {
+          const saved = parseInt(localStorage.getItem("_formPanelWidth"), 10);
+          if (saved && saved >= 220) {
+            formCard.style.setProperty("width",     saved + "px", "important");
+            formCard.style.setProperty("min-width", saved + "px", "important");
+            formCard.style.setProperty("max-width", saved + "px", "important");
+            formCard.classList.add("user-resized");
+          }
+        } catch(e) {}
+
+        if (toggleText) toggleText.textContent = "إخفاء الحقول";
+        if (toggleIcon) toggleIcon.className = "fas fa-table-columns";
+        if (toggleBtn) {
+          toggleBtn.title = "إخفاء الحقول";
+          toggleBtn.style.background   = "";
+          toggleBtn.style.borderColor  = "";
+          toggleBtn.style.color        = "";
+        }
+      }
+
+      // حفظ الحالة في localStorage
+      try { localStorage.setItem("_sidebarHidden", isHidden ? "1" : "0"); } catch(e) {}
+    }
+
+    // ── استعادة حالة الـ sidebar من localStorage ──
+    (function restoreSidebarState() {
+      try {
+        const saved = localStorage.getItem("_sidebarHidden");
+        if (saved === "1") {
+          setTimeout(function() {
+            const grid     = document.querySelector(".pp-grid");
+            const formCard = document.querySelector(".pp-form-card");
+            const resizer  = document.getElementById("ppResizer");
+            const toggleText = document.getElementById("sidebarToggleText");
+            const toggleIcon = document.getElementById("sidebarToggleIcon");
+            const toggleBtn  = document.getElementById("btnToggleSidebar");
+            if (grid && formCard) {
+              // أزل inline styles أولاً
+              formCard.style.removeProperty("width");
+              formCard.style.removeProperty("min-width");
+              formCard.style.removeProperty("max-width");
+              formCard.classList.remove("user-resized");
+
+              grid.classList.add("sidebar-hidden");
+              formCard.classList.add("sidebar-hidden");
+              if (resizer) resizer.style.display = "none";
+              if (toggleText) toggleText.textContent = "إظهار الحقول";
+              if (toggleIcon) toggleIcon.className   = "fas fa-expand";
+              if (toggleBtn) {
+                toggleBtn.title = "إظهار الحقول";
+                toggleBtn.style.background  = "var(--accent)";
+                toggleBtn.style.borderColor = "var(--accent)";
+                toggleBtn.style.color       = "#fff";
+              }
+            }
+          }, 200);
+        }
+      } catch(e) {}
+    })();
+
+    // ── ظل شريط الأدوات عند التمرير ────────────────────────
+    (function initToolbarShadow() {
+      const card    = document.querySelector(".pp-table-card");
+      const toolbar = document.getElementById("tableToolbarSticky");
+      if (!card || !toolbar) return;
+      card.addEventListener("scroll", () => {
+        if (card.scrollTop > 10) {
+          toolbar.classList.add("scrolled");
+        } else {
+          toolbar.classList.remove("scrolled");
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

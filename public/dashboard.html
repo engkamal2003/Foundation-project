@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة الإحصائيات — نظام المؤسسة</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:      #0f172a;
+      --bg2:     #1e293b;
+      --card:    #1e293b;
+      --card2:   #273548;
+      --border:  #334155;
+      --text:    #f1f5f9;
+      --muted:   #94a3b8;
+      --primary: #6366f1;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error:   #ef4444;
+      --purple:  #a855f7;
+      --cyan:    #06b6d4;
+      --orange:  #f97316;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Tahoma, sans-serif; min-height: 100vh; }
+
+    /* topbar */
+    .topbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-brand { font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem; }
+    .topbar-actions { display: flex; align-items: center; gap: 0.75rem; }
+    .badge { background: var(--primary); color: #fff; font-size: 0.65rem; padding: 2px 7px; border-radius: 99px; font-weight: 700; }
+
+    /* btn */
+    .btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.42rem 0.9rem; border-radius: 8px; border: none; cursor: pointer; font-size: 0.82rem; font-family: inherit; font-weight: 600; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--primary); }
+
+    /* layout */
+    .main { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+
+    /* page header */
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem; }
+    .page-title { font-size: 1.35rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+    .last-update { font-size: 0.78rem; color: var(--muted); }
+
+    /* KPI cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.1rem 1.25rem;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .kpi-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+    .kpi-card::before { content: ''; position: absolute; top: 0; right: 0; width: 4px; height: 100%; border-radius: 0 14px 14px 0; }
+    .kpi-card.blue::before   { background: var(--primary); }
+    .kpi-card.green::before  { background: var(--success); }
+    .kpi-card.red::before    { background: var(--error); }
+    .kpi-card.purple::before { background: var(--purple); }
+    .kpi-card.cyan::before   { background: var(--cyan); }
+    .kpi-card.orange::before { background: var(--orange); }
+    .kpi-card.yellow::before { background: var(--warning); }
+    .kpi-icon { font-size: 1.6rem; margin-bottom: 0.6rem; }
+    .kpi-val  { font-size: 1.9rem; font-weight: 800; line-height: 1; }
+    .kpi-lbl  { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; }
+    .kpi-sub  { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+
+    /* section */
+    .section { margin-bottom: 1.75rem; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem; }
+    .section-title { font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+    .section-title i { color: var(--primary); }
+
+    /* 2-col grid */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* chart card */
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+    }
+    .chart-card canvas { max-height: 280px; }
+
+    /* panels grid */
+    .panels-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.75rem; }
+    .panel-stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .panel-stat:hover { border-color: var(--primary); background: var(--card2); }
+    .panel-stat .ps-label { font-size: 0.78rem; color: var(--muted); flex: 1; }
+    .panel-stat .ps-count { font-size: 1.1rem; font-weight: 700; color: var(--primary); min-width: 2rem; text-align: left; }
+    .panel-stat .ps-icon  { font-size: 1rem; color: var(--muted); }
+
+    /* activity log */
+    .act-table { width: 100%; border-collapse: collapse; }
+    .act-table th { background: var(--card2); padding: 0.55rem 0.85rem; text-align: right; font-size: 0.76rem; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+    .act-table td { padding: 0.55rem 0.85rem; font-size: 0.8rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .act-table tr:last-child td { border-bottom: none; }
+    .act-table tr:hover td { background: var(--card2); }
+
+    /* action badges */
+    .act-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 0.72rem; font-weight: 600; }
+    .act-add    { background: rgba(34,197,94,0.15);  color: var(--success); }
+    .act-edit   { background: rgba(99,102,241,0.15); color: var(--primary); }
+    .act-delete { background: rgba(239,68,68,0.15);  color: var(--error);   }
+    .act-login  { background: rgba(168,85,247,0.15); color: var(--purple);  }
+    .act-logout { background: rgba(148,163,184,0.15);color: var(--muted);   }
+    .act-backup { background: rgba(34,197,94,0.15);  color: #22c55e;        }
+
+    /* loading */
+    .loading { text-align: center; padding: 3rem; color: var(--muted); }
+    .loading i { display: block; font-size: 2rem; margin-bottom: 0.75rem; animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* refresh btn animation */
+    .spinning { animation: spin 0.8s linear infinite; }
+
+    /* empty */
+    .empty { text-align: center; padding: 2rem; color: var(--muted); font-size: 0.85rem; }
+
+    /* scrollable table container */
+    .table-wrap { overflow-x: auto; }
+
+    /* toast */
+    #toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(100px); background: #1e293b; color: #f1f5f9; padding: 0.65rem 1.4rem; border-radius: 10px; font-size: 0.88rem; transition: transform 0.3s; z-index: 9999; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,.4); }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <i class="fas fa-chart-line" style="color:var(--primary)"></i>
+    لوحة الإحصائيات
+    <span class="badge">Dashboard</span>
+  </div>
+  <div class="topbar-actions">
+    <span id="userName" style="font-size:0.82rem;color:var(--muted)"></span>
+    <a href="/" class="btn btn-ghost"><i class="fas fa-home"></i> الرئيسية</a>
+    <button class="btn btn-ghost" id="btnRefresh" onclick="loadStats()" title="تحديث البيانات">
+      <i class="fas fa-rotate-right" id="refreshIcon"></i>
+    </button>
+    <button class="btn btn-ghost" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> خروج</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Page header -->
+  <div class="page-header">
+    <div class="page-title">
+      <i class="fas fa-chart-pie" style="color:var(--primary)"></i>
+      ملخص النظام
+    </div>
+    <div class="last-update" id="lastUpdate">جاري التحميل…</div>
+  </div>
+
+  <!-- KPI row 1: records + users -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card blue">
+      <div class="kpi-icon"><i class="fas fa-database" style="color:var(--primary)"></i></div>
+      <div class="kpi-val" id="kpiTotal">—</div>
+      <div class="kpi-lbl">إجمالي السجلات</div>
+      <div class="kpi-sub">عبر جميع اللوحات</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon"><i class="fas fa-users" style="color:var(--success)"></i></div>
+      <div class="kpi-val" id="kpiUsers">—</div>
+      <div class="kpi-lbl">المستخدمون</div>
+      <div class="kpi-sub" id="kpiUsersSub">—</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-icon"><i class="fas fa-plus-circle" style="color:var(--purple)"></i></div>
+      <div class="kpi-val" id="kpiAdds">—</div>
+      <div class="kpi-lbl">إضافات (30 يوم)</div>
+      <div class="kpi-sub">آخر 30 يومًا</div>
+    </div>
+    <div class="kpi-card cyan">
+      <div class="kpi-icon"><i class="fas fa-edit" style="color:var(--cyan)"></i></div>
+      <div class="kpi-val" id="kpiEdits">—</div>
+      <div class="kpi-lbl">تعديلات (30 يوم)</div>
+      <div class="kpi-sub">آخر 30 يومًا</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-icon"><i class="fas fa-trash" style="color:var(--error)"></i></div>
+      <div class="kpi-val" id="kpiDeletes">—</div>
+      <div class="kpi-lbl">حذف (30 يوم)</div>
+      <div class="kpi-sub">آخر 30 يومًا</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-icon"><i class="fas fa-right-to-bracket" style="color:var(--orange)"></i></div>
+      <div class="kpi-val" id="kpiLogins">—</div>
+      <div class="kpi-lbl">دخول (30 يوم)</div>
+      <div class="kpi-sub">آخر 30 يومًا</div>
+    </div>
+  </div>
+
+  <!-- Charts + Activity -->
+  <div class="two-col section">
+    <!-- Chart: توزيع السجلات -->
+    <div class="chart-card">
+      <div class="section-header">
+        <div class="section-title"><i class="fas fa-chart-bar"></i> أكثر اللوحات بيانات</div>
+      </div>
+      <canvas id="chartPanels"></canvas>
+    </div>
+    <!-- Chart: نشاطات 30 يوم -->
+    <div class="chart-card">
+      <div class="section-header">
+        <div class="section-title"><i class="fas fa-chart-donut"></i> توزيع النشاطات (30 يوم)</div>
+      </div>
+      <canvas id="chartActivity"></canvas>
+    </div>
+  </div>
+
+  <!-- Panels count grid -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><i class="fas fa-th-large"></i> عدد سجلات كل لوحة</div>
+      <span style="font-size:0.78rem;color:var(--muted)">انقر على اللوحة لفتحها</span>
+    </div>
+    <div class="panels-grid" id="panelsGrid">
+      <div class="loading"><i class="fas fa-spinner"></i> جاري التحميل…</div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><i class="fas fa-clock-rotate-left"></i> آخر النشاطات</div>
+      <a href="/admin.html#activity" class="btn btn-ghost" style="font-size:0.78rem">
+        <i class="fas fa-arrow-left"></i> عرض الكل
+      </a>
+    </div>
+    <div class="chart-card table-wrap">
+      <table class="act-table" id="actTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>المستخدم</th>
+            <th>الإجراء</th>
+            <th>اللوحة</th>
+            <th>التوقيت</th>
+          </tr>
+        </thead>
+        <tbody id="actBody">
+          <tr><td colspan="5" class="loading"><i class="fas fa-spinner"></i></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div id="toast"></div>
+
+<script>
+// ── Auth ─────────────────────────────────────────────────────────
+const TOKEN_KEY = '_authToken';
+const USER_KEY  = '_authUser';
+
+function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+async function initAuth() {
+  const token = getToken();
+  if (!token) { location.href = '/login.html'; return false; }
+  try {
+    const res  = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) { location.href = '/login.html'; return false; }
+    const data = await res.json();
+    const u    = data.user;
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
+    document.getElementById('userName').textContent = u.display_name || u.username;
+    return u;
+  } catch { location.href = '/login.html'; return false; }
+}
+
+function doLogout() {
+  fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + getToken() } }).finally(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    location.href = '/login.html';
+  });
+}
+
+// ── Panel labels ─────────────────────────────────────────────────
+const PANEL_LABELS = {
+  donors:'المانحون', units:'الوحدات', drivers:'السائقون', trucks:'الشاحنات',
+  cars:'السيارات', supervisors:'المشرفون', executors:'المنفذون', warehouses:'المستودعات',
+  associations:'الجمعيات', contractors:'المقاولون', suppliers:'الموردون', credits:'الاعتمادات',
+  items:'الأصناف', convoys:'القوافل', convoy_calc:'احتساب القوافل', pallet_calc:'احتساب الباليت',
+  truck_items:'أصناف الشاحنات', cashbox:'الصندوق', car_movements:'حركة السيارات',
+  car_billing:'احتساب أجرة السيارات', car_rates:'تعرفة السيارات', truck_rates:'تعرفة الشاحنات',
+  convoy_billing:'احتساب القوافل (شاحنات)', combined_entries:'القيود المستحقة',
+  car_payment_cashbox:'صندوق دفع السيارات'
+};
+const PANEL_ICONS = {
+  donors:'fa-hand-holding-heart', units:'fa-building', drivers:'fa-id-card', trucks:'fa-truck',
+  cars:'fa-car', supervisors:'fa-user-tie', executors:'fa-hard-hat', warehouses:'fa-warehouse',
+  associations:'fa-people-group', contractors:'fa-helmet-safety', suppliers:'fa-boxes-stacked',
+  credits:'fa-file-invoice-dollar', items:'fa-tags', convoys:'fa-truck-fast',
+  convoy_calc:'fa-calculator', pallet_calc:'fa-pallet', truck_items:'fa-box-open',
+  cashbox:'fa-cash-register', car_movements:'fa-route', car_billing:'fa-receipt',
+  car_rates:'fa-money-bill-wave', truck_rates:'fa-truck-ramp-box',
+  convoy_billing:'fa-file-invoice', combined_entries:'fa-layer-group',
+  car_payment_cashbox:'fa-money-check-dollar'
+};
+
+// ── Charts ────────────────────────────────────────────────────────
+let chartPanelsInst = null;
+let chartActInst    = null;
+
+function renderChartPanels(panels) {
+  const entries = Object.entries(panels)
+    .filter(([,v]) => v > 0)
+    .sort(([,a],[,b]) => b - a)
+    .slice(0, 10);
+
+  const labels = entries.map(([k]) => PANEL_LABELS[k] || k);
+  const data   = entries.map(([,v]) => v);
+  const colors = ['#6366f1','#22c55e','#f59e0b','#ef4444','#a855f7','#06b6d4','#f97316','#10b981','#3b82f6','#e879f9'];
+
+  if (chartPanelsInst) chartPanelsInst.destroy();
+  const ctx = document.getElementById('chartPanels').getContext('2d');
+  chartPanelsInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors.slice(0, data.length), borderRadius: 6, borderSkipped: false }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      }
+    }
+  });
+}
+
+function renderChartActivity(act) {
+  const vals = [act.adds||0, act.edits||0, act.deletes||0, act.logins||0];
+  const labels = ['إضافة', 'تعديل', 'حذف', 'دخول'];
+  const colors = ['#22c55e','#6366f1','#ef4444','#a855f7'];
+
+  if (chartActInst) chartActInst.destroy();
+  const ctx = document.getElementById('chartActivity').getContext('2d');
+  chartActInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: vals, backgroundColor: colors, borderWidth: 2, borderColor: '#1e293b', hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 14, font: { size: 12 } } }
+      }
+    }
+  });
+}
+
+// ── Render panels grid ────────────────────────────────────────────
+function renderPanelsGrid(panels) {
+  const grid = document.getElementById('panelsGrid');
+  const entries = Object.entries(panels);
+  if (!entries.length) { grid.innerHTML = '<div class="empty">لا توجد بيانات</div>'; return; }
+
+  grid.innerHTML = entries.map(([key, count]) => `
+    <a class="panel-stat" href="/panel.html?panel=${key}" target="_blank">
+      <i class="fas ${PANEL_ICONS[key]||'fa-table'} ps-icon"></i>
+      <span class="ps-label">${PANEL_LABELS[key]||key}</span>
+      <span class="ps-count">${count.toLocaleString()}</span>
+    </a>
+  `).join('');
+}
+
+// ── Render activity ───────────────────────────────────────────────
+const ACTION_MAP = {
+  add:    { label:'إضافة',    css:'act-add',    icon:'fa-plus' },
+  edit:   { label:'تعديل',   css:'act-edit',   icon:'fa-pen'  },
+  delete: { label:'حذف',     css:'act-delete', icon:'fa-trash'},
+  login:  { label:'دخول',    css:'act-login',  icon:'fa-right-to-bracket' },
+  logout: { label:'خروج',    css:'act-logout', icon:'fa-right-from-bracket' },
+  backup: { label:'نسخ احتياطي', css:'act-backup', icon:'fa-cloud-arrow-up' },
+};
+
+function renderActivity(rows) {
+  const tbody = document.getElementById('actBody');
+  if (!rows || !rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">لا توجد نشاطات بعد</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map((r, i) => {
+    const a   = ACTION_MAP[r.action] || { label: r.action, css:'act-logout', icon:'fa-circle' };
+    const dt  = new Date(r.created_at);
+    const timeStr = isNaN(dt) ? r.created_at : dt.toLocaleString('ar-SA', { dateStyle:'short', timeStyle:'short' });
+    const panel   = r.panel_key ? (PANEL_LABELS[r.panel_key] || r.panel_key) : '—';
+    return `<tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td><strong>${r.display_name||''}</strong> <span style="color:var(--muted);font-size:0.72rem">(${r.username||''})</span></td>
+      <td><span class="act-badge ${a.css}"><i class="fas ${a.icon}"></i> ${a.label}</span></td>
+      <td style="color:var(--muted)">${panel}</td>
+      <td style="color:var(--muted);white-space:nowrap">${timeStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Main load ─────────────────────────────────────────────────────
+async function loadStats() {
+  const icon = document.getElementById('refreshIcon');
+  icon.classList.add('spinning');
+  document.getElementById('lastUpdate').textContent = 'جاري التحديث…';
+
+  try {
+    const res  = await fetch('/api/stats', { headers: { Authorization: 'Bearer ' + getToken() } });
+    if (!res.ok) { showToast('فشل تحميل الإحصائيات', 'error'); return; }
+    const data = await res.json();
+
+    // KPI
+    document.getElementById('kpiTotal').textContent   = (data.totalRecords||0).toLocaleString();
+    document.getElementById('kpiUsers').textContent   = data.users?.total || 0;
+    document.getElementById('kpiUsersSub').textContent =
+      `${data.users?.active||0} نشط / ${data.users?.inactive||0} موقوف`;
+    document.getElementById('kpiAdds').textContent    = data.activity30d?.adds    || 0;
+    document.getElementById('kpiEdits').textContent   = data.activity30d?.edits   || 0;
+    document.getElementById('kpiDeletes').textContent = data.activity30d?.deletes || 0;
+    document.getElementById('kpiLogins').textContent  = data.activity30d?.logins  || 0;
+
+    // Charts
+    renderChartPanels(data.panels || {});
+    renderChartActivity(data.activity30d || {});
+
+    // Panels grid
+    renderPanelsGrid(data.panels || {});
+
+    // Activity
+    renderActivity(data.recentActivity || []);
+
+    // Timestamp
+    const genAt = new Date(data.generatedAt);
+    document.getElementById('lastUpdate').textContent =
+      'آخر تحديث: ' + (isNaN(genAt) ? data.generatedAt : genAt.toLocaleTimeString('ar-SA'));
+
+  } catch (e) {
+    showToast('خطأ في الاتصال بالخادم', 'error');
+    document.getElementById('lastUpdate').textContent = 'فشل التحديث';
+  } finally {
+    icon.classList.remove('spinning');
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = type==='error' ? '#7f1d1d' : type==='success' ? '#14532d' : '#1e293b';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────
+(async () => {
+  const ok = await initAuth();
+  if (ok) loadStats();
+})();
+</script>
+</body>
+</html>

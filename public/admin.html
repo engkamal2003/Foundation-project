@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم المدير | إدارة المستخدمين</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #1d4ed8; --primary-dark: #1e40af;
+      --bg: #0f172a; --card: #1e293b; --card2: #162032;
+      --border: #334155; --text: #f1f5f9; --text-muted: #94a3b8;
+      --success: #22c55e; --error: #ef4444; --warning: #f59e0b;
+      --purple: #7c3aed;
+    }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── شريط علوي ── */
+    .topbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 0.75rem; font-size: 1.1rem; font-weight: 700; }
+    .topbar-brand .badge { background: var(--purple); color: #fff; font-size: 0.65rem; padding: 2px 7px; border-radius: 99px; font-weight: 600; }
+    .topbar-actions { display: flex; align-items: center; gap: 0.75rem; }
+    .btn-sm { padding: 0.4rem 0.9rem; border-radius: 8px; border: none; font-size: 0.82rem; font-family: inherit; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; transition: all 0.2s; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-danger  { background: var(--error); color: #fff; }
+    .btn-danger:hover  { background: #dc2626; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-success:hover { background: #16a34a; }
+    .btn-ghost   { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
+    .btn-warning { background: var(--warning); color: #000; }
+
+    /* ── المحتوى ── */
+    .main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+    /* ── بطاقات إحصاء ── */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; }
+    .stat-card .val { font-size: 1.8rem; font-weight: 800; }
+    .stat-card .lbl { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── جدول المستخدمين ── */
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .section-title { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+    .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--card2); padding: 0.65rem 0.9rem; text-align: right; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 0.9rem; font-size: 0.85rem; border-bottom: 1px solid rgba(51,65,85,0.5); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .badge-role { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
+    .badge-admin  { background: rgba(124,58,237,0.2); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+    .badge-user   { background: rgba(29,78,216,0.2); color: #93c5fd; border: 1px solid rgba(29,78,216,0.3); }
+    .badge-active { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.3); padding: 3px 10px; border-radius: 99px; font-size: 0.72rem; }
+    .badge-inactive { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); padding: 3px 10px; border-radius: 99px; font-size: 0.72rem; }
+
+    /* ── نافذة منبثقة ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; align-items: center; justify-content: center; padding: 1rem; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
+    .modal-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-title { font-size: 1rem; font-weight: 700; }
+    .modal-body { padding: 1.5rem; }
+    .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; justify-content: flex-end; }
+    .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.1rem; cursor: pointer; padding: 0.25rem; }
+    .btn-close:hover { color: var(--text); }
+
+    /* ── حقول النموذج ── */
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .form-row.full { grid-template-columns: 1fr; }
+    .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.4rem; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 0.6rem 0.875rem;
+      background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px;
+      color: var(--text); font-size: 0.875rem; font-family: inherit; outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--primary); }
+    .form-group select option { background: var(--card); }
+
+    /* ── صلاحيات اللوحات ── */
+    .perms-title { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin: 1.25rem 0 0.5rem; display: flex; align-items: center; justify-content: space-between; }
+    .panels-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.4rem; }
+    .panel-toggle { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.78rem; transition: all 0.15s; }
+    .panel-toggle:hover { border-color: var(--primary); }
+    .panel-toggle input[type=checkbox] { accent-color: var(--primary); width: 14px; height: 14px; cursor: pointer; }
+    .panel-toggle.checked { background: rgba(29,78,216,0.1); border-color: var(--primary); color: #93c5fd; }
+
+    /* ── مفاتيح الصلاحيات ── */
+    .actions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.5rem; margin-top: 0.5rem; }
+    .action-toggle { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 0.82rem; transition: all 0.15s; }
+    .action-toggle:hover { border-color: var(--success); }
+    .action-toggle input[type=checkbox] { accent-color: var(--success); width: 15px; height: 15px; cursor: pointer; }
+    .action-toggle.checked { background: rgba(34,197,94,0.1); border-color: var(--success); color: #86efac; }
+
+    /* ── Toast ── */
+    #toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(80px); background: #1e293b; border: 1px solid #334155; color: #f1f5f9; padding: 0.7rem 1.5rem; border-radius: 99px; font-size: 0.875rem; z-index: 9999; transition: transform 0.3s; white-space: nowrap; }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+    .empty-state i { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; }
+  </style>
+</head>
+<body>
+
+<!-- شريط علوي -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <i class="fas fa-shield-alt" style="color:#7c3aed"></i>
+    لوحة تحكم المدير
+    <span class="badge">Admin</span>
+  </div>
+  <div class="topbar-actions">
+    <span id="adminName" style="font-size:0.85rem;color:var(--text-muted)"></span>
+    <a href="/dashboard.html" class="btn-sm btn-ghost"><i class="fas fa-chart-line"></i> الإحصائيات</a>
+    <a href="/" class="btn-sm btn-ghost"><i class="fas fa-home"></i> الرئيسية</a>
+    <button class="btn-sm btn-danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> خروج</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- إحصائيات -->
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="val" id="statTotal">—</div><div class="lbl"><i class="fas fa-users" style="margin-left:4px"></i>إجمالي المستخدمين</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--success)" id="statActive">—</div><div class="lbl"><i class="fas fa-check-circle" style="margin-left:4px"></i>نشط</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--error)" id="statInactive">—</div><div class="lbl"><i class="fas fa-ban" style="margin-left:4px"></i>موقوف</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--purple)" id="statAdmins">—</div><div class="lbl"><i class="fas fa-user-shield" style="margin-left:4px"></i>مدراء</div></div>
+  </div>
+
+  <!-- جدول المستخدمين -->
+  <div class="section-header">
+    <div class="section-title"><i class="fas fa-users"></i> المستخدمون</div>
+    <button class="btn-sm btn-primary" onclick="openNewUserModal()">
+      <i class="fas fa-plus"></i> مستخدم جديد
+    </button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>الاسم المميز</th>
+          <th>اسم المستخدم</th>
+          <th>الدور</th>
+          <th>الحالة</th>
+          <th>الصلاحيات</th>
+          <th>إجراءات</th>
+        </tr>
+      </thead>
+      <tbody id="usersTableBody">
+        <tr><td colspan="7"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i>جاري التحميل...</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- قسم تفريغ بيانات المتصفح -->
+  <div style="margin-top:2rem">
+    <div class="section-header">
+      <div class="section-title"><i class="fas fa-trash-can" style="color:var(--error)"></i> تفريغ بيانات المتصفح (localStorage)</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem">
+      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem;line-height:1.7">
+        <i class="fas fa-info-circle" style="color:var(--warning);margin-left:6px"></i>
+        بعض البيانات تُخزَّن مؤقتاً في متصفحك (localStorage). إذا كنت ترى بيانات قديمة، استخدم هذا الزر لمسحها.
+        <br><strong style="color:var(--error)">تنبيه: هذا يمسح بيانات المتصفح الحالي فقط ولا يؤثر على قاعدة البيانات D1.</strong>
+      </p>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+        <button class="btn-sm btn-warning" onclick="clearBrowserData()">
+          <i class="fas fa-broom"></i> تفريغ كل بيانات اللوحات
+        </button>
+        <button class="btn-sm btn-ghost" onclick="checkBrowserData()">
+          <i class="fas fa-magnifying-glass"></i> فحص بيانات المتصفح
+        </button>
+      </div>
+      <div id="browserDataStatus" style="margin-top:0.75rem;font-size:0.83rem;color:var(--text-muted);display:none"></div>
+    </div>
+  </div>
+
+  <!-- قسم النسخ الاحتياطي -->
+  <div style="margin-top:2rem">
+    <div class="section-header">
+      <div class="section-title"><i class="fas fa-cloud-arrow-up" style="color:#22c55e"></i> النسخ الاحتياطي</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem">
+      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem;line-height:1.7">
+        <i class="fas fa-info-circle" style="color:#22c55e;margin-left:6px"></i>
+        تصدير نسخة احتياطية كاملة لجميع بيانات قاعدة البيانات D1 بصيغة JSON. يمكنك تحميلها وحفظها على جهازك.
+      </p>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center">
+        <button class="btn-sm btn-success" onclick="createBackup()" id="btnCreateBackup">
+          <i class="fas fa-database"></i> إنشاء نسخة احتياطية الآن
+        </button>
+        <button class="btn-sm btn-ghost" onclick="listBackups()">
+          <i class="fas fa-list"></i> عرض النسخ المحفوظة
+        </button>
+      </div>
+      <div id="backupStatus" style="margin-top:0.75rem;font-size:0.83rem;display:none"></div>
+      <div id="backupList" style="margin-top:0.75rem;display:none"></div>
+    </div>
+  </div>
+
+  <!-- قسم سجل النشاطات -->
+  <div style="margin-top:2rem">
+    <div class="section-header">
+      <div class="section-title"><i class="fas fa-clock-rotate-left" style="color:#60a5fa"></i> سجل نشاطات المستخدمين</div>
+      <button class="btn-sm btn-ghost" onclick="loadActivityLog()"><i class="fas fa-refresh"></i> تحديث</button>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--border);display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+        <select id="actLogFilter" onchange="loadActivityLog()" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:0.82rem;font-family:inherit">
+          <option value="">كل الإجراءات</option>
+          <option value="add">إضافة</option>
+          <option value="edit">تعديل</option>
+          <option value="delete">حذف</option>
+          <option value="login">دخول</option>
+          <option value="logout">خروج</option>
+          <option value="backup">نسخ احتياطي</option>
+        </select>
+        <span style="color:var(--text-muted);font-size:0.82rem" id="actLogCount"></span>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="background:var(--card2);padding:0.6rem 1rem;text-align:right;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">#</th>
+            <th style="background:var(--card2);padding:0.6rem 1rem;text-align:right;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">المستخدم</th>
+            <th style="background:var(--card2);padding:0.6rem 1rem;text-align:right;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">الإجراء</th>
+            <th style="background:var(--card2);padding:0.6rem 1rem;text-align:right;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">اللوحة</th>
+            <th style="background:var(--card2);padding:0.6rem 1rem;text-align:right;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">التوقيت</th>
+          </tr>
+        </thead>
+        <tbody id="activityLogBody">
+          <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:0.85rem"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>
+        </tbody>
+      </table>
+      <div id="actLogPagination" style="padding:0.75rem 1rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;display:none"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- نافذة إضافة/تعديل مستخدم -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle"><i class="fas fa-user-plus" style="margin-left:8px"></i>مستخدم جديد</div>
+      <button class="btn-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editUserId">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>الاسم المميز *</label>
+          <input type="text" id="fDisplayName" placeholder="مثال: أحمد المدير">
+        </div>
+        <div class="form-group">
+          <label>اسم المستخدم *</label>
+          <input type="text" id="fUsername" placeholder="مثال: ahmed" dir="ltr" style="text-align:right">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>كلمة المرور <span id="passHint" style="color:var(--text-muted);font-weight:400">(اتركها فارغة للإبقاء)</span></label>
+          <input type="password" id="fPassword" placeholder="••••••••" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label>الدور</label>
+          <select id="fRole">
+            <option value="user">مستخدم عادي</option>
+            <option value="admin">مدير (Admin)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>الحالة</label>
+          <select id="fActive">
+            <option value="1">✅ نشط</option>
+            <option value="0">🚫 موقوف</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- صلاحيات الإجراءات -->
+      <div class="perms-title">
+        <span><i class="fas fa-tools" style="margin-left:6px"></i>صلاحيات الإجراءات</span>
+      </div>
+      <div class="actions-grid">
+        <label class="action-toggle" id="lbl_can_add">
+          <input type="checkbox" id="fCanAdd" checked onchange="updateToggleClass(this,'lbl_can_add')">
+          <i class="fas fa-plus-circle"></i> إضافة
+        </label>
+        <label class="action-toggle" id="lbl_can_edit">
+          <input type="checkbox" id="fCanEdit" checked onchange="updateToggleClass(this,'lbl_can_edit')">
+          <i class="fas fa-edit"></i> تعديل
+        </label>
+        <label class="action-toggle" id="lbl_can_delete">
+          <input type="checkbox" id="fCanDelete" onchange="updateToggleClass(this,'lbl_can_delete')">
+          <i class="fas fa-trash"></i> حذف
+        </label>
+        <label class="action-toggle" id="lbl_can_export">
+          <input type="checkbox" id="fCanExport" checked onchange="updateToggleClass(this,'lbl_can_export')">
+          <i class="fas fa-file-export"></i> تصدير
+        </label>
+        <label class="action-toggle" id="lbl_can_import">
+          <input type="checkbox" id="fCanImport" onchange="updateToggleClass(this,'lbl_can_import')">
+          <i class="fas fa-file-import"></i> استيراد
+        </label>
+      </div>
+
+      <!-- صلاحيات اللوحات -->
+      <div class="perms-title">
+        <span><i class="fas fa-th-large" style="margin-left:6px"></i>اللوحات المسموح بها</span>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn-sm btn-ghost" style="font-size:0.75rem;padding:3px 8px" onclick="selectAllPanels(true)">تحديد الكل</button>
+          <button class="btn-sm btn-ghost" style="font-size:0.75rem;padding:3px 8px" onclick="selectAllPanels(false)">إلغاء الكل</button>
+        </div>
+      </div>
+      <div class="panels-grid" id="panelsGrid"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn-sm btn-primary" onclick="saveUser()"><i class="fas fa-save"></i> حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+const ALL_PANELS = [
+  { key: 'donors',            label: 'المانحون' },
+  { key: 'units',             label: 'الوحدات' },
+  { key: 'drivers',           label: 'السائقون' },
+  { key: 'trucks',            label: 'الشاحنات' },
+  { key: 'cars',              label: 'السيارات' },
+  { key: 'supervisors',       label: 'المشرفون' },
+  { key: 'executors',         label: 'المنفذون' },
+  { key: 'warehouses',        label: 'المستودعات' },
+  { key: 'associations',      label: 'الجمعيات' },
+  { key: 'contractors',       label: 'المقاولون' },
+  { key: 'suppliers',         label: 'الموردون' },
+  { key: 'credits',           label: 'الاعتمادات' },
+  { key: 'items',             label: 'الأصناف' },
+  { key: 'convoys',           label: 'القوافل' },
+  { key: 'convoy_calc',       label: 'احتساب القوافل' },
+  { key: 'pallet_calc',       label: 'احتساب الباليت' },
+  { key: 'truck_items',       label: 'أصناف الشاحنات' },
+  { key: 'cashbox',           label: 'الصندوق' },
+  { key: 'car_movements',     label: 'حركة السيارات' },
+  { key: 'car_billing',       label: 'احتساب أجرة السيارات' },
+  { key: 'car_rates',         label: 'تعرفة السيارات' },
+  { key: 'truck_rates',       label: 'تعرفة الشاحنات' },
+  { key: 'convoy_billing',    label: 'احتساب القوافل' },
+  { key: 'combined_entries',  label: 'القيود المستحقة' },
+  { key: 'car_payment_cashbox', label: 'صندوق دفع السيارات' },
+];
+
+// دالة تُرجع التوكن دائماً من localStorage (ديناميكي)
+function getToken() { return localStorage.getItem('_authToken') || ''; }
+const token = getToken();
+let currentUser = null;
+
+// ── التحقق من المدير ────────────────────────────────────────────
+(async () => {
+  if (!token) { location.href = '/login.html?next=' + encodeURIComponent(location.href); return; }
+  try {
+    const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + getToken() } });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    if (data.user.role !== 'admin') { location.href = '/'; return; }
+    currentUser = data.user;
+    document.getElementById('adminName').textContent = data.user.display_name;
+    await loadUsers();
+    buildPanelsGrid();
+    loadActivityLog();
+  } catch { location.href = '/login.html'; }
+})();
+
+// ── بناء شبكة اللوحات ──────────────────────────────────────────
+function buildPanelsGrid() {
+  const grid = document.getElementById('panelsGrid');
+  grid.innerHTML = ALL_PANELS.map(p => `
+    <label class="panel-toggle checked" id="plbl_${p.key}">
+      <input type="checkbox" class="panel-cb" data-key="${p.key}" checked
+        onchange="updateToggleClass(this,'plbl_${p.key}')">
+      ${p.label}
+    </label>
+  `).join('');
+}
+
+function updateToggleClass(cb, lblId) {
+  const lbl = document.getElementById(lblId);
+  if (cb.checked) lbl.classList.add('checked');
+  else lbl.classList.remove('checked');
+}
+
+function selectAllPanels(val) {
+  document.querySelectorAll('.panel-cb').forEach(cb => {
+    cb.checked = val;
+    const lbl = document.getElementById('plbl_' + cb.dataset.key);
+    if (val) lbl.classList.add('checked'); else lbl.classList.remove('checked');
+  });
+}
+
+// ── تحميل المستخدمين ────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const res = await fetch('/api/auth/users', { headers: { Authorization: 'Bearer ' + getToken() } });
+    const data = await res.json();
+    renderUsers(data.users || []);
+  } catch {
+    showToast('فشل تحميل المستخدمين', 'error');
+  }
+}
+
+function renderUsers(users) {
+  // إحصائيات
+  document.getElementById('statTotal').textContent    = users.length;
+  document.getElementById('statActive').textContent   = users.filter(u => u.is_active).length;
+  document.getElementById('statInactive').textContent = users.filter(u => !u.is_active).length;
+  document.getElementById('statAdmins').textContent   = users.filter(u => u.role === 'admin').length;
+
+  const tbody = document.getElementById('usersTableBody');
+  if (!users.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-users-slash"></i>لا يوجد مستخدمون</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = users.map((u, i) => {
+    const panels = u.allowed_panels ? JSON.parse(u.allowed_panels) : null;
+    const panelStr = panels === null ? '<span style="color:var(--success)">جميع اللوحات</span>'
+      : `<span style="color:var(--text-muted)">${panels.length} لوحة</span>`;
+    const perms = [];
+    if (u.can_add)    perms.push('<span title="إضافة" style="color:var(--success)"><i class="fas fa-plus-circle"></i></span>');
+    if (u.can_edit)   perms.push('<span title="تعديل" style="color:var(--warning)"><i class="fas fa-edit"></i></span>');
+    if (u.can_delete) perms.push('<span title="حذف" style="color:var(--error)"><i class="fas fa-trash"></i></span>');
+    if (u.can_export) perms.push('<span title="تصدير" style="color:#60a5fa"><i class="fas fa-file-export"></i></span>');
+    if (u.can_import) perms.push('<span title="استيراد" style="color:#a78bfa"><i class="fas fa-file-import"></i></span>');
+
+    return `<tr>
+      <td style="color:var(--text-muted)">${i+1}</td>
+      <td><strong>${u.display_name}</strong></td>
+      <td><code style="background:var(--bg);padding:2px 7px;border-radius:5px;font-size:0.8rem">${u.username}</code></td>
+      <td>${u.role === 'admin'
+        ? '<span class="badge-role badge-admin"><i class="fas fa-crown"></i> مدير</span>'
+        : '<span class="badge-role badge-user"><i class="fas fa-user"></i> مستخدم</span>'}</td>
+      <td>${u.is_active
+        ? '<span class="badge-active">✅ نشط</span>'
+        : '<span class="badge-inactive">🚫 موقوف</span>'}</td>
+      <td>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          ${perms.join('')}
+          <span style="color:var(--border);margin:0 2px">|</span>
+          ${panelStr}
+        </div>
+      </td>
+      <td>
+        <div style="display:flex;gap:0.4rem">
+          <button class="btn-sm btn-ghost" style="padding:4px 8px" onclick="editUser('${u.id}')">
+            <i class="fas fa-edit"></i>
+          </button>
+          ${u.id !== 'admin-default-001' ? `
+          <button class="btn-sm btn-danger" style="padding:4px 8px" onclick="deleteUser('${u.id}','${u.display_name}')">
+            <i class="fas fa-trash"></i>
+          </button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── فتح نافذة مستخدم جديد ──────────────────────────────────────
+function openNewUserModal() {
+  document.getElementById('modalTitle').innerHTML = '<i class="fas fa-user-plus" style="margin-left:8px"></i>مستخدم جديد';
+  document.getElementById('editUserId').value = '';
+  document.getElementById('fDisplayName').value = '';
+  document.getElementById('fUsername').value = '';
+  document.getElementById('fPassword').value = '';
+  document.getElementById('fRole').value = 'user';
+  document.getElementById('fActive').value = '1';
+  document.getElementById('fCanAdd').checked = true;
+  document.getElementById('fCanEdit').checked = true;
+  document.getElementById('fCanDelete').checked = false;
+  document.getElementById('fCanExport').checked = true;
+  document.getElementById('fCanImport').checked = false;
+  document.getElementById('passHint').style.display = 'none';
+  ['lbl_can_add','lbl_can_edit','lbl_can_export'].forEach(id => {
+    document.getElementById(id).classList.add('checked');
+  });
+  ['lbl_can_delete','lbl_can_import'].forEach(id => {
+    document.getElementById(id).classList.remove('checked');
+  });
+  selectAllPanels(true);
+  document.getElementById('userModal').classList.add('open');
+}
+
+// ── تعديل مستخدم ────────────────────────────────────────────────
+async function editUser(id) {
+  try {
+    const res = await fetch(`/api/auth/users/${id}`, { headers: { Authorization: 'Bearer ' + getToken() } });
+    const data = await res.json();
+    if (!res.ok || !data.user) throw new Error(data.error || 'لم يُعثر على المستخدم');
+    const u = data.user;
+
+    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-user-edit" style="margin-left:8px"></i>تعديل المستخدم';
+    document.getElementById('editUserId').value    = u.id;
+    document.getElementById('fDisplayName').value  = u.display_name;
+    document.getElementById('fUsername').value     = u.username;
+    document.getElementById('fPassword').value     = '';
+    document.getElementById('fRole').value         = u.role;
+    document.getElementById('fActive').value       = u.is_active ? '1' : '0';
+    document.getElementById('fCanAdd').checked     = !!u.can_add;
+    document.getElementById('fCanEdit').checked    = !!u.can_edit;
+    document.getElementById('fCanDelete').checked  = !!u.can_delete;
+    document.getElementById('fCanExport').checked  = !!u.can_export;
+    document.getElementById('fCanImport').checked  = !!u.can_import;
+    document.getElementById('passHint').style.display = '';
+
+    // تحديث ألوان أزرار الصلاحيات
+    [
+      ['fCanAdd',    'lbl_can_add'],
+      ['fCanEdit',   'lbl_can_edit'],
+      ['fCanDelete', 'lbl_can_delete'],
+      ['fCanExport', 'lbl_can_export'],
+      ['fCanImport', 'lbl_can_import'],
+    ].forEach(([cbId, lblId]) => {
+      const cb  = document.getElementById(cbId);
+      const lbl = document.getElementById(lblId);
+      if (!cb || !lbl) return;
+      if (cb.checked) lbl.classList.add('checked'); else lbl.classList.remove('checked');
+    });
+
+    // تحديد اللوحات المسموح بها
+    const allowed = u.allowed_panels ? JSON.parse(u.allowed_panels) : null;
+    document.querySelectorAll('.panel-cb').forEach(cb => {
+      const checked = allowed === null || allowed.includes(cb.dataset.key);
+      cb.checked = checked;
+      const lbl = document.getElementById('plbl_' + cb.dataset.key);
+      if (lbl) { if (checked) lbl.classList.add('checked'); else lbl.classList.remove('checked'); }
+    });
+
+    document.getElementById('userModal').classList.add('open');
+  } catch(e) {
+    console.error('editUser error:', e);
+    showToast('❌ فشل تحميل بيانات المستخدم: ' + e.message, 'error');
+  }
+}
+
+// ── حفظ المستخدم ────────────────────────────────────────────────
+async function saveUser() {
+  const id          = document.getElementById('editUserId').value;
+  const displayName = document.getElementById('fDisplayName').value.trim();
+  const username    = document.getElementById('fUsername').value.trim();
+  const password    = document.getElementById('fPassword').value;
+  const role        = document.getElementById('fRole').value;
+  const isActive    = document.getElementById('fActive').value === '1';
+
+  if (!displayName || !username) { showToast('الاسم المميز واسم المستخدم مطلوبان', 'error'); return; }
+  if (!id && !password) { showToast('كلمة المرور مطلوبة للمستخدم الجديد', 'error'); return; }
+
+  // جمع اللوحات المحددة
+  const allChecked = [...document.querySelectorAll('.panel-cb')].every(cb => cb.checked);
+  const allowedPanels = allChecked ? null
+    : [...document.querySelectorAll('.panel-cb:checked')].map(cb => cb.dataset.key);
+
+  const body = {
+    display_name:    displayName,
+    username,
+    role,
+    is_active:       isActive ? 1 : 0,
+    can_add:         document.getElementById('fCanAdd').checked ? 1 : 0,
+    can_edit:        document.getElementById('fCanEdit').checked ? 1 : 0,
+    can_delete:      document.getElementById('fCanDelete').checked ? 1 : 0,
+    can_export:      document.getElementById('fCanExport').checked ? 1 : 0,
+    can_import:      document.getElementById('fCanImport').checked ? 1 : 0,
+    allowed_panels:  allowedPanels ? JSON.stringify(allowedPanels) : null,
+  };
+  if (password) body.password = password;
+
+  try {
+    const url    = id ? `/api/auth/users/${id}` : '/api/auth/users';
+    const method = id ? 'PUT' : 'POST';
+    const res    = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'فشل الحفظ');
+    showToast(id ? '✅ تم تحديث المستخدم' : '✅ تم إنشاء المستخدم', 'success');
+    closeModal();
+    await loadUsers();
+  } catch (e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+// ── حذف مستخدم ──────────────────────────────────────────────────
+async function deleteUser(id, name) {
+  if (!confirm(`هل تريد حذف المستخدم "${name}"؟`)) return;
+  try {
+    const res = await fetch(`/api/auth/users/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + getToken() }
+    });
+    if (!res.ok) throw new Error('فشل الحذف');
+    showToast('✅ تم حذف المستخدم', 'success');
+    await loadUsers();
+  } catch (e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+function closeModal() { document.getElementById('userModal').classList.remove('open'); }
+
+function logout() {
+  localStorage.removeItem('_authToken');
+  localStorage.removeItem('_authUser');
+  location.href = '/login.html';
+}
+
+let _toastTimer;
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = type === 'error' ? '#7f1d1d' : type === 'success' ? '#14532d' : '#1e293b';
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── تفريغ بيانات المتصفح ─────────────────────────────────────────
+const ALL_PANEL_KEYS = [
+  'donors','units','drivers','trucks','cars','supervisors','executors',
+  'warehouses','associations','contractors','suppliers','credits','items',
+  'convoys','convoy_calc','pallet_calc','truck_items','cashbox',
+  'car_movements','car_billing','car_rates','truck_rates',
+  'convoy_billing','combined_entries','car_payment_cashbox'
+];
+
+function clearBrowserData() {
+  if (!confirm('⚠️ هل أنت متأكد من تفريغ جميع بيانات اللوحات من المتصفح؟\n\nهذا لن يؤثر على قاعدة البيانات D1.')) return;
+  let cleared = 0;
+  ALL_PANEL_KEYS.forEach(p => {
+    const key = 'db_' + p;
+    if (localStorage.getItem(key) !== null) { localStorage.removeItem(key); cleared++; }
+  });
+  // مسح مفاتيح إضافية مرتبطة
+  ['_convoy_trucks','_billingMovementId','_sidebarHidden'].forEach(k => localStorage.removeItem(k));
+  const statusEl = document.getElementById('browserDataStatus');
+  statusEl.style.display = 'block';
+  statusEl.style.color = '#86efac';
+  statusEl.innerHTML = `<i class="fas fa-check-circle"></i> تم مسح <strong>${cleared}</strong> لوحة من المتصفح بنجاح. أعد تحميل صفحة اللوحات.`;
+  showToast(`✅ تم تفريغ ${cleared} لوحة من المتصفح`, 'success');
+}
+
+function checkBrowserData() {
+  const statusEl = document.getElementById('browserDataStatus');
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--text-muted)';
+  const found = [];
+  ALL_PANEL_KEYS.forEach(p => {
+    const raw = localStorage.getItem('db_' + p);
+    if (raw) {
+      try { const arr = JSON.parse(raw); if (arr.length > 0) found.push(`${p}: ${arr.length} سجل`); } catch {}
+    }
+  });
+  if (found.length === 0) {
+    statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#86efac"></i> لا توجد بيانات في المتصفح. المتصفح نظيف ✅';
+  } else {
+    statusEl.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> يوجد بيانات في المتصفح:<br><code style="font-size:0.8rem;color:var(--warning)">${found.join(' | ')}</code>`;
+  }
+}
+
+// إغلاق النافذة بالضغط خارجها
+
+// ═══════════════════════════════════════════════════════
+// النسخ الاحتياطي
+// ═══════════════════════════════════════════════════════
+async function createBackup() {
+  const btn = document.getElementById('btnCreateBackup');
+  const statusEl = document.getElementById('backupStatus');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإنشاء...';
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--text-muted)';
+  statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> يتم تصدير جميع البيانات...';
+
+  try {
+    const res = await fetch('/api/backup/create', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + getToken() }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'فشل الإنشاء');
+
+    statusEl.style.color = '#86efac';
+    const sizeKB = (data.size / 1024).toFixed(1);
+
+    if (data.storage === 'r2') {
+      statusEl.innerHTML = `<i class="fas fa-check-circle"></i> تم حفظ النسخة في Cloudflare R2: <strong>${data.filename}</strong> (${sizeKB} KB)`;
+    } else {
+      // تحميل مباشر إذا لم يكن R2 متاحاً
+      statusEl.innerHTML = `<i class="fas fa-check-circle"></i> تم إنشاء النسخة (${sizeKB} KB) — <a href="#" onclick="downloadBackup(event)" id="_backupLink" style="color:#60a5fa">اضغط لتحميلها</a>`;
+      window._lastBackupData = data.data;
+      window._lastBackupName = data.filename;
+    }
+    showToast(`✅ نسخة احتياطية جاهزة (${sizeKB} KB)`, 'success');
+  } catch(e) {
+    statusEl.style.color = 'var(--error)';
+    statusEl.innerHTML = `<i class="fas fa-times-circle"></i> فشل: ${e.message}`;
+    showToast('❌ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-database"></i> إنشاء نسخة احتياطية الآن';
+  }
+}
+
+function downloadBackup(e) {
+  e.preventDefault();
+  if (!window._lastBackupData) return;
+  const blob = new Blob([window._lastBackupData], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = window._lastBackupName || 'backup.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function listBackups() {
+  const listEl = document.getElementById('backupList');
+  listEl.style.display = 'block';
+  listEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحميل...';
+  try {
+    const res = await fetch('/api/backup/list', { headers: { Authorization: 'Bearer ' + getToken() } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    if (!data.backups || data.backups.length === 0) {
+      listEl.innerHTML = '<span style="color:var(--text-muted);font-size:0.83rem">لا توجد نسخ محفوظة في R2 حتى الآن.</span>';
+      return;
+    }
+    listEl.innerHTML = data.backups.map(b => {
+      const sizeKB = (b.size / 1024).toFixed(1);
+      const date = b.uploaded ? new Date(b.uploaded).toLocaleString('ar-SA') : '—';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.82rem">
+        <span style="color:var(--text-muted)"><i class="fas fa-file-archive" style="color:#22c55e;margin-left:6px"></i>${b.name}</span>
+        <span style="color:var(--text-muted)">${sizeKB} KB — ${date}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    listEl.innerHTML = `<span style="color:var(--error);font-size:0.83rem">خطأ: ${e.message}</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// سجل النشاطات
+// ═══════════════════════════════════════════════════════
+const ACTION_LABELS = {
+  add:    { label: 'إضافة',  color: '#86efac', bg: 'rgba(34,197,94,0.15)',   icon: 'fa-plus' },
+  edit:   { label: 'تعديل', color: '#fcd34d', bg: 'rgba(245,158,11,0.15)',  icon: 'fa-pen' },
+  delete: { label: 'حذف',   color: '#fca5a5', bg: 'rgba(239,68,68,0.15)',   icon: 'fa-trash' },
+  login:  { label: 'دخول',  color: '#93c5fd', bg: 'rgba(59,130,246,0.15)',  icon: 'fa-right-to-bracket' },
+  logout: { label: 'خروج',  color: '#93c5fd', bg: 'rgba(59,130,246,0.15)',  icon: 'fa-right-from-bracket' },
+  backup: { label: 'نسخ',   color: '#6ee7b7', bg: 'rgba(20,184,166,0.15)',  icon: 'fa-cloud-arrow-up' },
+};
+const PANEL_LABELS_ADMIN = {
+  donors:'المانحون', units:'وحدات القياس', drivers:'السائقون', trucks:'الشاحنات',
+  cars:'السيارات', supervisors:'المشرفون', executors:'المنفذون', warehouses:'المستودعات',
+  associations:'الجمعيات', contractors:'المقاولون', suppliers:'الموردون', credits:'الاعتمادات',
+  items:'المواد', convoys:'القوافل', convoy_calc:'احتساب القوافل', pallet_calc:'احتساب البالتات',
+  truck_items:'مواد القافلة', cashbox:'الصندوق', car_movements:'حركات السيارات',
+  car_billing:'احتساب السيارات', car_rates:'تعريفة السيارات', truck_rates:'تعريفة الشاحنات',
+  convoy_billing:'احتساب القوافل المالي', combined_entries:'القيود المستحقة',
+  car_payment_cashbox:'مدفوعات السيارات'
+};
+
+let _actLogOffset = 0;
+const ACT_LOG_LIMIT = 20;
+
+async function loadActivityLog(reset = true) {
+  if (reset) _actLogOffset = 0;
+  const filter = document.getElementById('actLogFilter').value;
+  const tbody  = document.getElementById('activityLogBody');
+  const pagEl  = document.getElementById('actLogPagination');
+  const countEl = document.getElementById('actLogCount');
+
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.2rem;font-size:0.85rem"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>`;
+
+  try {
+    let url = `/api/activity_log?limit=${ACT_LOG_LIMIT}&offset=${_actLogOffset}`;
+    if (filter) url += `&action=${encodeURIComponent(filter)}`;
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + getToken() } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const logs = data.data || [];
+    const total = data.total || 0;
+    countEl.textContent = `(إجمالي: ${total})`;
+
+    if (logs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:0.85rem"><i class="fas fa-inbox"></i> لا توجد نشاطات</td></tr>`;
+      pagEl.style.display = 'none';
+      return;
+    }
+
+    tbody.innerHTML = logs.map((l, i) => {
+      const act = ACTION_LABELS[l.action] || { label: l.action, color:'#94a3b8', bg:'rgba(148,163,184,0.15)', icon:'fa-circle' };
+      const panelLabel = l.panel_key ? (PANEL_LABELS_ADMIN[l.panel_key] || l.panel_key) : '—';
+      const timeStr = l.created_at ? new Date(l.created_at).toLocaleString('ar-SA', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+      return `<tr>
+        <td style="color:var(--text-muted);padding:0.65rem 1rem;font-size:0.83rem;border-bottom:1px solid rgba(51,65,85,0.4)">${_actLogOffset + i + 1}</td>
+        <td style="padding:0.65rem 1rem;font-size:0.83rem;border-bottom:1px solid rgba(51,65,85,0.4)"><strong>${l.display_name || l.username || '—'}</strong></td>
+        <td style="padding:0.65rem 1rem;font-size:0.83rem;border-bottom:1px solid rgba(51,65,85,0.4)">
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:99px;font-size:0.72rem;font-weight:600;background:${act.bg};color:${act.color}">
+            <i class="fas ${act.icon}"></i> ${act.label}
+          </span>
+        </td>
+        <td style="color:var(--text-muted);padding:0.65rem 1rem;font-size:0.83rem;border-bottom:1px solid rgba(51,65,85,0.4)">${panelLabel}</td>
+        <td style="color:var(--text-muted);padding:0.65rem 1rem;font-size:0.72rem;border-bottom:1px solid rgba(51,65,85,0.4)">${timeStr}</td>
+      </tr>`;
+    }).join('');
+
+    // ترقيم الصفحات
+    const hasNext = _actLogOffset + ACT_LOG_LIMIT < total;
+    const hasPrev = _actLogOffset > 0;
+    if (hasNext || hasPrev) {
+      pagEl.style.display = 'flex';
+      pagEl.innerHTML = `
+        <button class="btn-sm btn-ghost" onclick="_actLogPage(-1)" ${hasPrev?'':'disabled'} style="opacity:${hasPrev?1:0.4}">‹ السابق</button>
+        <span style="color:var(--text-muted)">${Math.floor(_actLogOffset/ACT_LOG_LIMIT)+1} / ${Math.ceil(total/ACT_LOG_LIMIT)}</span>
+        <button class="btn-sm btn-ghost" onclick="_actLogPage(1)" ${hasNext?'':'disabled'} style="opacity:${hasNext?1:0.4}">التالي ›</button>
+      `;
+    } else { pagEl.style.display = 'none'; }
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--error);padding:1rem;font-size:0.83rem">خطأ: ${e.message}</td></tr>`;
+  }
+}
+
+function _actLogPage(dir) {
+  _actLogOffset = Math.max(0, _actLogOffset + dir * ACT_LOG_LIMIT);
+  loadActivityLog(false);
+}
+document.getElementById('userModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+</script>
+</body>
+</html>

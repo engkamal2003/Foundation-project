@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>نظام الإدخال والتقارير | الصندوق + القوافل</title>
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <style>
+    /* ─── Launcher page styles ───────────────────────── */
+    .launcher-wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 1.25rem 3rem;
+    }
+
+    /* Hero section */
+    .launcher-hero {
+      text-align: center;
+      padding: 2.5rem 1rem 1.5rem;
+    }
+    .launcher-hero h1 {
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--accent);
+      margin: 0 0 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .launcher-hero p {
+      color: var(--text-muted, #94a3b8);
+      font-size: 0.95rem;
+      margin: 0;
+    }
+
+    /* Panel cards grid */
+    .panel-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .panel-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      padding: 1.5rem 1rem;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      cursor: pointer;
+      color: var(--text);
+      transition: border-color 0.18s, transform 0.15s, box-shadow 0.18s;
+      text-align: center;
+      position: relative;
+      /* لا overflow:hidden حتى لا تُقطع الـ popup */
+      user-select: none;
+    }
+    .panel-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity 0.18s;
+      border-radius: inherit;
+    }
+    .panel-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(99,102,241,0.22);
+    }
+    .panel-card:hover::before { opacity: 0.06; }
+    .panel-card:active { transform: translateY(0); }
+
+    .panel-card-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: rgba(99,102,241,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      color: var(--accent);
+      position: relative;
+      z-index: 1;
+      transition: background 0.18s;
+      pointer-events: none;
+    }
+    .panel-card:hover .panel-card-icon { background: rgba(99,102,241,0.22); }
+
+    .panel-card-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      line-height: 1.35;
+      position: relative;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .panel-card-count {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.18rem 0.6rem;
+      border-radius: 20px;
+      background: rgba(99,102,241,0.12);
+      color: var(--accent);
+      position: relative;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ── Open-mode popup ─────────────────────────────── */
+    #openPopup {
+      position: fixed;
+      z-index: 9000;
+      display: flex;           /* دائماً flex — نتحكم بالظهور عبر opacity/pointer-events */
+      flex-direction: column;
+      gap: 0;
+      background: #0f172a;
+      border: 1.5px solid #334155;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+      min-width: 260px;
+      max-width: 300px;
+      overflow: hidden;
+      /* حالة البداية: مخفي */
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.93) translateY(6px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      visibility: hidden;
+    }
+    #openPopup.is-open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1) translateY(0);
+      visibility: visible;
+    }
+    [data-theme="light"] #openPopup {
+      background: #1e293b;
+      border-color: #475569;
+    }
+
+    .popup-header {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.75rem 1rem 0.55rem;
+      border-bottom: 1px solid #334155;
+    }
+    [data-theme="light"] .popup-header { border-bottom-color: #475569; }
+    .popup-header-icon {
+      width: 34px; height: 34px;
+      border-radius: 9px;
+      background: rgba(99,102,241,0.18);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; color: #818cf8; flex-shrink: 0;
+    }
+    .popup-header-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #f1f5f9;
+      line-height: 1.3;
+    }
+    .popup-header-sub {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      margin-top: 1px;
+    }
+    .popup-close {
+      margin-right: auto;
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .popup-close:hover { background: rgba(239,68,68,0.15); color: #f87171; }
+
+    .popup-body {
+      padding: 0.55rem 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .popup-option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 9px;
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      transition: background 0.13s, border-color 0.13s, transform 0.1s;
+      text-align: right;
+    }
+    .popup-option:hover {
+      background: rgba(99,102,241,0.12);
+      border-color: rgba(99,102,241,0.35);
+      transform: scale(1.01);
+    }
+    .popup-option:active { transform: scale(0.98); }
+
+    .popup-option-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.05rem;
+      flex-shrink: 0;
+    }
+    .popup-option-icon.same  { background: rgba(34,197,94,0.15);  color: #22c55e; }
+    .popup-option-icon.newtab { background: rgba(99,102,241,0.15); color: #818cf8; }
+
+    .popup-option-text { flex: 1; }
+    .popup-option-label {
+      font-size: 0.87rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .popup-option-desc {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .popup-option-badge {
+      font-size: 0.68rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 20px;
+      font-weight: 700;
+    }
+    .popup-option-badge.green {
+      background: rgba(34,197,94,0.15);
+      color: #22c55e;
+      border: 1px solid rgba(34,197,94,0.25);
+    }
+    .popup-option-badge.blue {
+      background: rgba(99,102,241,0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99,102,241,0.25);
+    }
+
+    /* Stats bar at top */
+    .stats-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+      justify-content: center;
+    }
+    .stat-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.85rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .stat-chip i { color: var(--accent); }
+
+    /* Section dividers */
+    .section-label {
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted, #64748b);
+      margin: 1.75rem 0 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .section-label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin-right: 0.5rem;
+    }
+
+    /* Top bar */
+    .ln-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.7rem 1.25rem;
+      background: var(--card);
+      border-bottom: 1.5px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .ln-brand {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .ln-topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+  </style>
+  <script src="js/auth.js"></script>
+</head>
+
+<body>
+  <!-- Top bar -->
+  <div class="ln-topbar">
+    <div class="ln-brand">
+      <i class="fas fa-chart-line"></i>
+      نظام الإدخال والتقارير
+    </div>
+    <div class="ln-topbar-right">
+      <span id="_authUserName" style="font-size:0.8rem;color:var(--text-muted,#94a3b8);padding:0 0.4rem"></span>
+      <a href="/dashboard.html" style="font-size:0.78rem;padding:4px 10px;background:rgba(59,130,246,0.15);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);border-radius:6px;text-decoration:none">
+        <i class="fas fa-chart-pie"></i> الإحصائيات
+      </a>
+      <a id="_adminPanelBtn" href="/admin.html" style="display:none;font-size:0.78rem;padding:4px 10px;background:rgba(124,58,237,0.2);color:#a78bfa;border:1px solid rgba(124,58,237,0.4);border-radius:6px;text-decoration:none">
+        <i class="fas fa-shield-alt"></i> لوحة التحكم
+      </a>
+      <button onclick="authLogout()" style="font-size:0.78rem;padding:4px 10px;background:rgba(239,68,68,0.1);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);border-radius:6px;cursor:pointer;font-family:inherit">
+        <i class="fas fa-sign-out-alt"></i> خروج
+      </button>
+      <button class="theme-toggle" id="themeToggle" title="تبديل الثيم">
+        <i class="fas fa-moon"></i>
+        <span id="themeText">الوضع الليلي</span>
+      </button>
+      <div class="chip" id="status">
+        <i class="fas fa-circle-check"></i>
+        <span>جاهز</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Popup: open mode ────────────────────────────── -->
+  <div id="openPopup">
+    <div class="popup-header">
+      <div class="popup-header-icon" id="popupIcon"><i class="fas fa-table-list"></i></div>
+      <div>
+        <div class="popup-header-title" id="popupTitle">اللوحة</div>
+        <div class="popup-header-sub" id="popupSub">اختر طريقة الفتح</div>
+      </div>
+      <button class="popup-close" onclick="closePopup()" title="إغلاق">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="popup-body">
+      <div class="popup-option" id="optSamePage">
+        <div class="popup-option-icon same">
+          <i class="fas fa-window-maximize"></i>
+        </div>
+        <div class="popup-option-text">
+          <div class="popup-option-label">فتح في نفس الصفحة</div>
+          <div class="popup-option-desc">تُستبدل الصفحة الحالية باللوحة</div>
+        </div>
+        <span class="popup-option-badge green">هنا</span>
+      </div>
+      <div class="popup-option" id="optNewTab">
+        <div class="popup-option-icon newtab">
+          <i class="fas fa-external-link-alt"></i>
+        </div>
+        <div class="popup-option-text">
+          <div class="popup-option-label">فتح في تبويبة جديدة</div>
+          <div class="popup-option-desc">تبقى هذه الصفحة مفتوحة</div>
+        </div>
+        <span class="popup-option-badge blue">جديد</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="launcher-wrap">
+
+    <!-- Hero -->
+    <div class="launcher-hero">
+      <h1><i class="fas fa-layer-group"></i> لوحات الإدخال</h1>
+      <p>اضغط على أي لوحة واختر طريقة الفتح</p>
+      <div class="stats-bar" id="statsBar"></div>
+    </div>
+
+    <!-- Panel cards — built dynamically -->
+    <div id="panelGridWrap"></div>
+
+  </div>
+
+  <!-- Toast -->
+  <div id="toastContainer"></div>
+
+  <!-- JS -->
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+
+  <script>
+    // ── Panel groups & icons ─────────────────────────────
+    const PANEL_GROUPS = [
+      {
+        label: "بيانات أساسية",
+        icon: "fas fa-database",
+        keys: ["donors","units","drivers","trucks","cars","supervisors",
+               "executors","warehouses","associations","contractors","suppliers","items"]
+      },
+      {
+        label: "العمليات",
+        icon: "fas fa-truck-moving",
+        keys: ["credits","convoys","convoy_calc","pallet_calc","truck_items"]
+      },
+      {
+        label: "المالية",
+        icon: "fas fa-coins",
+        keys: ["cashbox"]
+      },
+      {
+        label: "احتساب السيارات والقوافل",
+        icon: "fas fa-file-invoice-dollar",
+        keys: ["car_rates", "car_movements", "car_billing", "combined_entries",
+               "truck_rates", "convoy_billing"]
+      }
+    ];
+
+    const PANEL_ICONS = {
+      donors:       "fas fa-hand-holding-heart",
+      units:        "fas fa-ruler",
+      drivers:      "fas fa-id-card",
+      trucks:       "fas fa-truck",
+      cars:         "fas fa-car",
+      supervisors:  "fas fa-user-tie",
+      executors:    "fas fa-hard-hat",
+      warehouses:   "fas fa-warehouse",
+      associations: "fas fa-people-group",
+      contractors:  "fas fa-building",
+      suppliers:    "fas fa-boxes-stacked",
+      items:        "fas fa-list-check",
+      credits:      "fas fa-file-invoice",
+      convoys:      "fas fa-truck-moving",
+      convoy_calc:  "fas fa-calculator",
+      pallet_calc:  "fas fa-pallet",
+      truck_items:  "fas fa-box-open",
+      cashbox:      "fas fa-coins",
+      car_rates:    "fas fa-car-on",
+      car_movements: "fas fa-route",
+      car_billing:  "fas fa-file-invoice",
+      combined_entries: "fas fa-book-open",
+      truck_rates:  "fas fa-truck-ramp-box",
+      convoy_billing: "fas fa-file-invoice-dollar"
+    };
+
+    // ── Popup state ──────────────────────────────────────
+    let _activeKey  = "";
+    let _activeIcon = "fas fa-table-list";
+    let _activeTitle = "";
+
+    function openPopup(panelKey, iconCls, title, cardEl) {
+      _activeKey   = panelKey;
+      _activeIcon  = iconCls;
+      _activeTitle = title;
+
+      // تحديث محتوى الـ popup
+      document.getElementById("popupIcon").innerHTML    = `<i class="${iconCls}"></i>`;
+      document.getElementById("popupTitle").textContent = title;
+      document.getElementById("popupSub").textContent   = `اختر طريقة الفتح`;
+
+      const popup  = document.getElementById("openPopup");
+      const margin = 10;
+
+      // حساب الموضع بناءً على getBoundingClientRect (viewport coords)
+      const rect = cardEl.getBoundingClientRect();
+      const vw   = window.innerWidth;
+      const vh   = window.innerHeight;
+
+      // نضع الـ popup مؤقتاً لنقيس حجمه الحقيقي
+      popup.style.top  = "-9999px";
+      popup.style.left = "-9999px";
+      popup.classList.add("is-open");
+
+      // بعد frame واحد يكون الحجم متاحاً
+      requestAnimationFrame(() => {
+        const pw = popup.offsetWidth  || 270;
+        const ph = popup.offsetHeight || 200;
+
+        let top  = rect.bottom + margin;
+        let left = rect.left;
+
+        // منع الخروج من الشاشة يميناً/يساراً
+        if (left + pw > vw - margin) left = vw - pw - margin;
+        if (left < margin)           left = margin;
+
+        // إذا لا مكان أسفل → افتح فوق البطاقة
+        if (top + ph > vh - margin)  top  = rect.top - ph - margin;
+        if (top < margin)            top  = margin;
+
+        popup.style.top  = top  + "px";
+        popup.style.left = left + "px";
+      });
+    }
+
+    function closePopup() {
+      const popup = document.getElementById("openPopup");
+      popup.classList.remove("is-open");
+      _activeKey = "";
+    }
+
+    // إغلاق عند الضغط خارج الـ popup
+    document.addEventListener("click", e => {
+      const popup = document.getElementById("openPopup");
+      if (!popup.classList.contains("is-open")) return;
+      if (popup.contains(e.target)) return;
+      if (e.target.closest(".panel-card")) return;
+      closePopup();
+    });
+
+    // خيار: نفس الصفحة
+    document.getElementById("optSamePage").addEventListener("click", () => {
+      if (!_activeKey) return;
+      const key = _activeKey;   // احفظ المفتاح قبل إغلاق الـ popup
+      closePopup();
+      window.location.href = `panel.html?panel=${encodeURIComponent(key)}`;
+    });
+
+    // خيار: تبويبة جديدة
+    document.getElementById("optNewTab").addEventListener("click", () => {
+      if (!_activeKey) return;
+      window.open(`panel.html?panel=${encodeURIComponent(_activeKey)}`, "_blank");
+      closePopup();
+    });
+
+    // ── Build launcher ────────────────────────────────────
+    function makeCard(p, count) {
+      const icon       = PANEL_ICONS[p.key] || "fas fa-table";
+      const cleanTitle = p.title
+        .replace(/\s*\(Local[^)]*\)/gi, "")
+        .replace(/\s*\(DB[^)]*\)/gi, "")
+        .trim();
+
+      const card = document.createElement("div");
+      card.className = "panel-card";
+      card.innerHTML = `
+        <div class="panel-card-icon"><i class="${icon}"></i></div>
+        <div class="panel-card-name">${cleanTitle}</div>
+        <div class="panel-card-count">${count} سجل</div>
+      `;
+
+      card.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openPopup(p.key, icon, cleanTitle, card);
+      });
+
+      return card;
+    }
+
+    async function buildLauncher() {
+      const wrap = document.getElementById("panelGridWrap");
+      wrap.innerHTML = "";
+
+      // عدد السجلات
+      const counts = {};
+      for (const p of PANELS) {
+        try { counts[p.key] = (await getPanelRows(p.key)).length; }
+        catch { counts[p.key] = 0; }
+      }
+
+      // إحصائيات
+      const total = Object.values(counts).reduce((a,b) => a+b, 0);
+      document.getElementById("statsBar").innerHTML = `
+        <div class="stat-chip"><i class="fas fa-table-list"></i> ${PANELS.length} لوحة</div>
+        <div class="stat-chip"><i class="fas fa-database"></i> ${total} سجل إجمالي</div>
+        <div class="stat-chip"><i class="fas fa-hard-drive"></i> LocalStorage</div>
+      `;
+
+      // المجموعات
+      PANEL_GROUPS.forEach(group => {
+        const gPanels = group.keys.map(k => PANELS.find(p => p.key === k)).filter(Boolean);
+        if (!gPanels.length) return;
+
+        const lbl = document.createElement("div");
+        lbl.className = "section-label";
+        lbl.innerHTML = `<i class="${group.icon}"></i> ${group.label}`;
+        wrap.appendChild(lbl);
+
+        const grid = document.createElement("div");
+        grid.className = "panel-grid";
+        gPanels.forEach(p => grid.appendChild(makeCard(p, counts[p.key] || 0)));
+        wrap.appendChild(grid);
+      });
+
+      // باقي اللوحات غير المصنّفة
+      const grouped = PANEL_GROUPS.flatMap(g => g.keys);
+      const rest    = PANELS.filter(p => !grouped.includes(p.key));
+      if (rest.length) {
+        const lbl = document.createElement("div");
+        lbl.className = "section-label";
+        lbl.innerHTML = `<i class="fas fa-grip"></i> أخرى`;
+        wrap.appendChild(lbl);
+        const grid = document.createElement("div");
+        grid.className = "panel-grid";
+        rest.forEach(p => grid.appendChild(makeCard(p, counts[p.key] || 0)));
+        wrap.appendChild(grid);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        initTheme();
+        await buildLauncher();
+        setStatus("جاهز ✅ (Local)");
+      } catch(e) {
+        console.error(e);
+        setStatus("خطأ ❌");
+      }
+    });
+  </script>
+</body>
+</html>

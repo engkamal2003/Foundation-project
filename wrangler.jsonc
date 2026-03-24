@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "foundation-project",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "foundation_db",
+      "database_name": "foundation-db",
+      "database_id": "0033816c-dbd6-4cfb-bb9b-e93859fa5c9c"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BACKUPS",
+      "bucket_name": "foundation-backups"
+    }
+  ]
+}
