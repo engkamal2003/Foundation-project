@@ -582,9 +582,15 @@
       const wrap = document.getElementById("panelGridWrap");
       wrap.innerHTML = "";
 
+      // ── تصفية اللوحات حسب الصلاحيات ─────────────────────────
+      const allowedPanels = window._allowedPanels || null; // null = كل اللوحات مسموحة
+      const visiblePanels = allowedPanels
+        ? PANELS.filter(p => allowedPanels.includes(p.key))
+        : PANELS;
+
       // عدد السجلات
       const counts = {};
-      for (const p of PANELS) {
+      for (const p of visiblePanels) {
         try { counts[p.key] = (await getPanelRows(p.key)).length; }
         catch { counts[p.key] = 0; }
       }
@@ -592,14 +598,16 @@
       // إحصائيات
       const total = Object.values(counts).reduce((a,b) => a+b, 0);
       document.getElementById("statsBar").innerHTML = `
-        <div class="stat-chip"><i class="fas fa-table-list"></i> ${PANELS.length} لوحة</div>
+        <div class="stat-chip"><i class="fas fa-table-list"></i> ${visiblePanels.length} لوحة</div>
         <div class="stat-chip"><i class="fas fa-database"></i> ${total} سجل إجمالي</div>
         <div class="stat-chip"><i class="fas fa-hard-drive"></i> LocalStorage</div>
       `;
 
       // المجموعات
       PANEL_GROUPS.forEach(group => {
-        const gPanels = group.keys.map(k => PANELS.find(p => p.key === k)).filter(Boolean);
+        const gPanels = group.keys
+          .map(k => visiblePanels.find(p => p.key === k))
+          .filter(Boolean);
         if (!gPanels.length) return;
 
         const lbl = document.createElement("div");
@@ -615,7 +623,7 @@
 
       // باقي اللوحات غير المصنّفة
       const grouped = PANEL_GROUPS.flatMap(g => g.keys);
-      const rest    = PANELS.filter(p => !grouped.includes(p.key));
+      const rest    = visiblePanels.filter(p => !grouped.includes(p.key));
       if (rest.length) {
         const lbl = document.createElement("div");
         lbl.className = "section-label";
@@ -631,6 +639,10 @@
     document.addEventListener("DOMContentLoaded", async () => {
       try {
         initTheme();
+        // انتظر حتى تنتهي عملية التحقق من الجلسة حتى تُطبَّق صلاحيات اللوحات أولاً
+        if (window._authReady) {
+          await window._authReady;
+        }
         await buildLauncher();
         setStatus("جاهز ✅ (Local)");
       } catch(e) {

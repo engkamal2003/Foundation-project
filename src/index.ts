@@ -182,7 +182,9 @@ app.post('/api/auth/users', async (c) => {
       hash,
       body.role || 'user',
       body.is_active ?? 1,
-      body.allowed_panels ?? null,
+      body.allowed_panels != null
+        ? (typeof body.allowed_panels === 'string' ? body.allowed_panels : JSON.stringify(body.allowed_panels))
+        : null,
       body.can_add    ?? 1,
       body.can_edit   ?? 1,
       body.can_delete ?? 0,
@@ -212,7 +214,14 @@ app.put('/api/auth/users/:id', async (c) => {
     if (body.password)                   { sets.push('password_hash=?'); vals.push(await sha256(body.password as string)) }
     if (body.role         !== undefined) { sets.push('role=?');         vals.push(body.role) }
     if (body.is_active    !== undefined) { sets.push('is_active=?');    vals.push(body.is_active) }
-    if (body.allowed_panels !== undefined) { sets.push('allowed_panels=?'); vals.push(body.allowed_panels) }
+    if (body.allowed_panels !== undefined) {
+      sets.push('allowed_panels=?')
+      vals.push(
+        body.allowed_panels != null
+          ? (typeof body.allowed_panels === 'string' ? body.allowed_panels : JSON.stringify(body.allowed_panels))
+          : null
+      )
+    }
     if (body.can_add    !== undefined) { sets.push('can_add=?');    vals.push(body.can_add) }
     if (body.can_edit   !== undefined) { sets.push('can_edit=?');   vals.push(body.can_edit) }
     if (body.can_delete !== undefined) { sets.push('can_delete=?'); vals.push(body.can_delete) }

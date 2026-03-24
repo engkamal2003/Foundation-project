@@ -105,8 +105,18 @@
 
 
 // =====================================================
-// CRUD Operations (LOCAL ONLY)
+// CRUD Operations
 // =====================================================
+
+// ── مساعد: تحويل قيمة الصلاحية إلى boolean صارم ────────────────
+// يتعامل مع: 0, 1, "0", "1", false, true, null, undefined
+function _permBool(val) {
+  if (val === null || val === undefined) return true; // افتراضي: مسموح
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val !== 0;
+  if (typeof val === 'string') return val !== '0' && val !== 'false' && val !== '';
+  return Boolean(val);
+}
 
 // مساعد: تاريخ اليوم بصيغة YYYY-MM-DD
 function todayDateStr() {
@@ -117,7 +127,7 @@ function todayDateStr() {
 $("btnNew").onclick = async () => {
   // تحقق من صلاحية الإضافة
   const _u = window._authUser;
-  if (_u && _u.can_add === 0) {
+  if (_u && !_permBool(_u.can_add)) {
     showToast("⛔ ليس لديك صلاحية إضافة بيانات", "error");
     return;
   }
@@ -136,11 +146,11 @@ $("btnSave").onclick = async () => {
 
   // تحقق من صلاحية الإضافة أو التعديل
   const _uSave = window._authUser;
-  if (isEdit && _uSave && _uSave.can_edit === 0) {
+  if (isEdit && _uSave && !_permBool(_uSave.can_edit)) {
     showToast("⛔ ليس لديك صلاحية تعديل البيانات", "error");
     return;
   }
-  if (!isEdit && _uSave && _uSave.can_add === 0) {
+  if (!isEdit && _uSave && !_permBool(_uSave.can_add)) {
     showToast("⛔ ليس لديك صلاحية إضافة بيانات", "error");
     return;
   }
@@ -370,7 +380,7 @@ $("btnSave").onclick = async () => {
 $("btnDelete").onclick = async () => {
   // تحقق من صلاحية الحذف قبل أي شيء
   const _uDel = window._authUser;
-  if (_uDel && _uDel.can_delete === 0) {
+  if (_uDel && !_permBool(_uDel.can_delete)) {
     showToast("⛔ ليس لديك صلاحية حذف البيانات", "error");
     return;
   }
