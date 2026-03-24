@@ -84,6 +84,10 @@
     const adminBtn = document.getElementById('_adminPanelBtn');
     if (adminBtn) adminBtn.style.display = isAdmin ? '' : 'none';
 
+    // إظهار/إخفاء زر الإحصائيات (للمدير فقط)
+    const dashboardBtn = document.getElementById('_dashboardBtn');
+    if (dashboardBtn) dashboardBtn.style.display = isAdmin ? '' : 'none';
+
     // ── تطبيق كل صلاحية على جميع العناصر المقابلة ──────────────
     const permMap = {
       'add':    canAdd,

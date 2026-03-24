@@ -303,6 +303,13 @@ async function initAuth() {
     const data = await res.json();
     const u    = data.user;
     localStorage.setItem(USER_KEY, JSON.stringify(u));
+
+    // ── فحص الصلاحية: لوحة الإحصائيات للمدير فقط ──
+    if (u.role !== 'admin') {
+      location.href = '/index.html';
+      return false;
+    }
+
     document.getElementById('userName').textContent = u.display_name || u.username;
     return u;
   } catch { location.href = '/login.html'; return false; }
