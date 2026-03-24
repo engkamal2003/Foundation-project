@@ -1,7 +1,7 @@
 // =====================================================
 // API Configuration
 // =====================================================
-const API_BASE = "http://localhost:3001/api";
+// ملاحظة: API_BASE مُعرَّفة في api.js - لا تُعد تعريفها هنا
 
 // Database panel mapping
 const DB_PANEL_MAP = {
@@ -122,6 +122,6 @@ const DB_PANEL_MAP = {
 
 // js/config.js
 window.APP_CONFIG = {
-  MODE: "LOCAL_ONLY",     // ✅ كل شيء محلي
-  API_BASE: ""            // غير مستخدم
+  MODE: "D1_CLOUD",       // ✅ Cloudflare D1
+  API_BASE: "/api"        // Cloudflare Workers API
 };
