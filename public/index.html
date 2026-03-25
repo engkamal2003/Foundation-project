@@ -564,6 +564,7 @@
 
       const card = document.createElement("div");
       card.className = "panel-card";
+      card.dataset.panelKey = p.key;
       card.innerHTML = `
         <div class="panel-card-icon"><i class="${icon}"></i></div>
         <div class="panel-card-name">${cleanTitle}</div>
@@ -578,24 +579,11 @@
       return card;
     }
 
-    async function buildLauncher() {
+    // ── رسم شبكة اللوحات (بدون انتظار الأعداد) ─────────────────
+    function renderPanelGrid(visiblePanels, counts) {
       const wrap = document.getElementById("panelGridWrap");
       wrap.innerHTML = "";
 
-      // ── تصفية اللوحات حسب الصلاحيات ─────────────────────────
-      const allowedPanels = window._allowedPanels || null; // null = كل اللوحات مسموحة
-      const visiblePanels = allowedPanels
-        ? PANELS.filter(p => allowedPanels.includes(p.key))
-        : PANELS;
-
-      // عدد السجلات
-      const counts = {};
-      for (const p of visiblePanels) {
-        try { counts[p.key] = (await getPanelRows(p.key)).length; }
-        catch { counts[p.key] = 0; }
-      }
-
-      // إحصائيات
       const total = Object.values(counts).reduce((a,b) => a+b, 0);
       document.getElementById("statsBar").innerHTML = `
         <div class="stat-chip"><i class="fas fa-table-list"></i> ${visiblePanels.length} لوحة</div>
@@ -634,6 +622,35 @@
         rest.forEach(p => grid.appendChild(makeCard(p, counts[p.key] || 0)));
         wrap.appendChild(grid);
       }
+    }
+
+    async function buildLauncher() {
+      // ── تصفية اللوحات حسب الصلاحيات ─────────────────────────
+      const allowedPanels = window._allowedPanels || null; // null = كل اللوحات مسموحة
+      const visiblePanels = allowedPanels
+        ? PANELS.filter(p => allowedPanels.includes(p.key))
+        : PANELS;
+
+      // ── الخطوة 1: عرض البطاقات فوراً بعدد 0 (بدون انتظار) ──
+      const counts = {};
+      visiblePanels.forEach(p => counts[p.key] = 0);
+      renderPanelGrid(visiblePanels, counts);
+
+      // ── الخطوة 2: جلب الأعداد بالتوازي وتحديث كل بطاقة لوحدها ──
+      visiblePanels.forEach(p => {
+        getPanelRows(p.key)
+          .then(rows => {
+            counts[p.key] = rows.length;
+            // تحديث عداد هذه البطاقة مباشرة بدون إعادة رسم الكل
+            const countEl = document.querySelector(`[data-panel-key="${p.key}"] .panel-card-count`);
+            if (countEl) countEl.textContent = rows.length + " سجل";
+            // تحديث إجمالي الإحصائيات
+            const total = Object.values(counts).reduce((a,b) => a+b, 0);
+            const chip = document.querySelector("#statsBar .stat-chip:nth-child(2)");
+            if (chip) chip.innerHTML = `<i class="fas fa-database"></i> ${total} سجل إجمالي`;
+          })
+          .catch(() => {}); // تجاهل الأخطاء - العدد يبقى 0
+      });
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
