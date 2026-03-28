@@ -283,6 +283,42 @@ const TABLE_MAP: Record<string, string> = {
   car_payment_cashbox: 'car_payment_cashbox',
 }
 
+// ── مساعد: إضافة عمود إذا لم يكن موجوداً (auto-migration) ───────
+async function ensureColumn(db: D1Database, table: string, col: string, colType = 'TEXT'): Promise<void> {
+  try {
+    await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${col} ${colType}`).run()
+  } catch {
+    // العمود موجود مسبقاً — تجاهل الخطأ
+  }
+}
+
+// ── مساعد: تنفيذ INSERT/UPDATE مع إضافة الأعمدة تلقائياً عند الحاجة
+async function safeDbRun(
+  db: D1Database,
+  table: string,
+  sql: string,
+  vals: unknown[],
+  knownData: Record<string, unknown>
+): Promise<void> {
+  try {
+    await db.prepare(sql).bind(...vals).run()
+  } catch (e: unknown) {
+    const msg = String(e)
+    // no such column: XYZ → أضف العمود وأعد المحاولة
+    const m = msg.match(/no such column: (\S+)/)
+    if (m) {
+      const col = m[1]
+      const val = knownData[col]
+      const colType = (typeof val === 'number') ? 'REAL' : 'TEXT'
+      await ensureColumn(db, table, col, colType)
+      // أعد المحاولة مرة واحدة
+      await db.prepare(sql).bind(...vals).run()
+    } else {
+      throw e
+    }
+  }
+}
+
 // ── مساعد: دمج حقول الجدول مع حقل data (JSON) ───────────────────
 function mergeRow(row: Record<string, unknown>): Record<string, unknown> {
   if (!row) return {}
@@ -572,11 +608,9 @@ app.post('/api/:panel', async (c) => {
     const cols = Object.keys(knownData)
     const vals = Object.values(knownData)
     const placeholders = cols.map(() => '?').join(', ')
+    const insertSql = `INSERT OR REPLACE INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`
 
-    await c.env.foundation_db
-      .prepare(`INSERT OR REPLACE INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`)
-      .bind(...vals)
-      .run()
+    await safeDbRun(c.env.foundation_db, table, insertSql, vals, knownData)
 
     // تسجيل النشاط
     await logActivity(c.env.foundation_db, _postUser, 'add', panel, knownData.id as string)
@@ -617,11 +651,9 @@ app.put('/api/:panel/:id', async (c) => {
 
     const sets = Object.keys(knownData).map(k => `${k} = ?`).join(', ')
     const vals = [...Object.values(knownData), id]
+    const updateSql = `UPDATE ${table} SET ${sets} WHERE id = ?`
 
-    await c.env.foundation_db
-      .prepare(`UPDATE ${table} SET ${sets} WHERE id = ?`)
-      .bind(...vals)
-      .run()
+    await safeDbRun(c.env.foundation_db, table, updateSql, vals, knownData)
 
     // تسجيل النشاط
     await logActivity(c.env.foundation_db, _putUser, 'edit', panel, id)
