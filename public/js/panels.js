@@ -975,11 +975,30 @@ const PANELS = [
       const total = subtotal + extraAmt - discountAmt;
       if (total > 0) r.total = total.toFixed(2);
 
-      // ── حالة التحاسب: تُحسب من مجموع الدفعات في صندوق دفع حركات السيارات ──
-      if (typeof loadPanelLocal === "function" && r.movementNo) {
+      // ── حالة التحاسب: من سجل الدفع الواحد المرتبط (movementId أو movementNo) ──
+      if (typeof loadPanelLocal === "function") {
         const payments = loadPanelLocal("car_payment_cashbox");
-        const relatedPayments = payments.filter(p => (p.movementNo || "") === (r.movementNo || ""));
-        const totalPaid = relatedPayments.reduce((sum, p) => sum + (parseFloat(p.paidAmount) || 0), 0);
+        // البحث بـ movementId (الأكثر دقة) أولاً، ثم movementNo
+        const mvId = r.movementId || "";
+        const mvNo = (r.movementNo || "").trim();
+        // تجميع السجلات المطابقة وأخذ الأحدث فقط
+        let relatedPay = null;
+        if (mvId) {
+          const byId = payments.filter(p => (p.movementId || "") === mvId);
+          if (byId.length > 0) {
+            relatedPay = byId.sort((a,b) => (b.updated_at || b.id || "").localeCompare(a.updated_at || a.id || ""))[0];
+          }
+        }
+        if (!relatedPay && mvNo) {
+          const byNo = payments.filter(p => (p.movementNo || "").trim() === mvNo);
+          if (byNo.length > 0) {
+            relatedPay = byNo.sort((a,b) => (b.updated_at || b.id || "").localeCompare(a.updated_at || a.id || ""))[0];
+          }
+        }
+        // استخدام البيانات من سجل الدفع (totalPaidAfter هو الإجمالي المدفوع)
+        const totalPaid = relatedPay
+          ? (parseFloat(relatedPay.totalPaidAfter) || parseFloat(relatedPay.paidAmount) || 0)
+          : 0;
         r.paidAmount = totalPaid > 0 ? String(totalPaid.toFixed(2)) : "0";
         const remaining = total - totalPaid;
         r.amount = remaining > 0 ? remaining.toFixed(2) : "0.00";
@@ -987,12 +1006,10 @@ const PANELS = [
           r.accountingStatus = "لم يُحاسب";
         } else if (totalPaid <= 0) {
           r.accountingStatus = "لم يُحاسب";
-        } else if (Math.abs(totalPaid - total) < 0.01) {
+        } else if (Math.abs(totalPaid - total) < 0.01 || totalPaid >= total) {
           r.accountingStatus = "محاسب كامل";
-        } else if (totalPaid < total) {
-          r.accountingStatus = "محاسب جزئي";
         } else {
-          r.accountingStatus = "محاسب كامل";
+          r.accountingStatus = "محاسب جزئي";
         }
       } else {
         if (!r.accountingStatus) r.accountingStatus = "لم يُحاسب";
@@ -1408,7 +1425,7 @@ const PANELS = [
     ],
     fields: [
       { type: "section_header", label: "─── بيانات الدفعة ───" },
-      { k: "payDate",          label: "تاريخ الدفع",           type: "date",   req: true,
+      { k: "payDate",          label: "تاريخ الدفع",           type: "date",   req: false,
         hint: "تاريخ تسجيل الدفعة في الصندوق" },
       { k: "paymentType",      label: "نوع الدفع",             req: false,
         type: "select",

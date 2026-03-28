@@ -140,7 +140,8 @@ $("btnNew").onclick = async () => {
 
 $("btnSave").onclick = async () => {
   const panel = currentPanel();
-  const rec = getCurrentFormRec(panel);
+  // تمرير السجل المحمَّل كـ oldRec لضمان قراءة الحقول المعطَّلة بشكل صحيح
+  const rec = getCurrentFormRec(panel, window._currentFormRec || null);
   const err = validate(panel, rec);
   const isEdit = !!window.selectedId;
 
@@ -319,6 +320,152 @@ $("btnSave").onclick = async () => {
       savePanelLocal("combined_entries", savedEntries);
       setStatus("تم حفظ القيد ✅");
       showToast("✅ تم حفظ القيد بنجاح!", "success", 3500);
+      window.selectedId = null;
+      await renderAll();
+      return;
+    }
+
+    // ── حفظ خاص بصندوق دفع حركات السيارات ──────────────────────
+    // السجلات لها id افتراضي "pay_XXXX" لكنها تُحفظ/تُحدَّث في D1 عبر _billingId
+    if (panel.key === "car_payment_cashbox") {
+      // مسح كاش car_payment_cashbox فقط (للحصول على دفعات D1 الحديثة)
+      // لا نمسح كاش car_billing/car_movements لأن بياناتها قد تكون من localStorage (بيانات تجريبية)
+      _clearCache("car_payment_cashbox");
+
+      // استعادة البيانات الصحيحة من السجل المحدد (الحقول للقراءة فقط لا تُقرأ من DOM)
+      const currentRows = await getPanelRows("car_payment_cashbox");
+      const currentRec  = currentRows.find(r =>
+        r.id === window.selectedId || r._id === window.selectedId
+      ) || {};
+
+      console.log("[CASHBOX SAVE] selectedId:", window.selectedId);
+      console.log("[CASHBOX SAVE] currentRec found:", !!currentRec.movementId, "movId:", currentRec.movementId, "bilId:", currentRec._billingId);
+      console.log("[CASHBOX SAVE] rec.payDate:", rec.payDate, "rec.paidBy:", rec.paidBy, "rec.paidAmount:", rec.paidAmount);
+
+      // دمج: البيانات الصلبة من currentRec + التعديلات من النموذج
+      const billingId  = currentRec._billingId || (window.selectedId || "").replace(/^pay_/, "");
+      // movementId: يأتي دائماً من currentRec (مصدر موثوق من billingRows)
+      const movementId = currentRec.movementId || "";
+
+      const saveRec = {
+        // الحقول الثابتة من سجل الاحتساب
+        _billingId:      billingId,
+        movementId:      movementId,
+        movementNo:      currentRec.movementNo      || rec.movementNo      || "",
+        activityDate:    currentRec.activityDate    || rec.activityDate    || "",
+        accountingParty: currentRec.accountingParty || rec.accountingParty || "",
+        beneficiaryName: currentRec.beneficiaryName || rec.beneficiaryName || "",
+        transport:       currentRec.transport       || rec.transport       || "",
+        driverName:      currentRec.driverName      || rec.driverName      || "",
+        // الإجمالي يؤخذ دائماً من سجل الاحتساب الحالي (الأدق) وليس من الدفعة القديمة
+        totalAmount:     currentRec.totalAmount || rec.totalAmount || "",
+        // الحقول القابلة للتعديل من النموذج
+        payDate:         rec.payDate      || "",
+        paymentType:     rec.paymentType  || "",
+        paidBy:          rec.paidBy       || "",
+        referenceNo:     rec.referenceNo  || currentRec.referenceNo || "",
+        paidAmount:      rec.paidAmount   || "",
+        paidAmountBefore: rec.paidAmountBefore || currentRec.paidAmountBefore || "0",
+        periodFromDate:  rec.periodFromDate || "",
+        periodToDate:    rec.periodToDate   || "",
+        creditNo2:       rec.creditNo2    || "",
+        statement:       rec.statement    || "",
+        notes:           rec.notes        || "",
+        _statementManual: !!(rec.statement && rec.statement !== currentRec.statement),
+      };
+
+      // حساب المبالغ تلقائياً عند الحفظ
+      const totalAmt  = parseFloat(saveRec.totalAmount)     || 0;
+      const before    = parseFloat(saveRec.paidAmountBefore) || 0;
+      const current   = parseFloat(saveRec.paidAmount)       || 0;
+      const afterPay  = before + current;
+      const remaining = Math.max(0, totalAmt - afterPay);
+      saveRec.totalPaidAfter  = afterPay > 0  ? String(Math.round(afterPay))  : "0";
+      saveRec.remainingAmount = String(Math.round(remaining));
+      if (totalAmt <= 0) {
+        saveRec.accountingStatus = "";
+      } else if (remaining <= 0) {
+        saveRec.accountingStatus = "محاسب كامل";
+      } else if (afterPay > 0) {
+        saveRec.accountingStatus = "محاسب جزئي";
+      } else {
+        saveRec.accountingStatus = "لم يُحاسب";
+      }
+
+      // مسح الكاش قبل البحث لضمان جلب أحدث البيانات من D1
+      _clearCache("car_payment_cashbox");
+      if (typeof apiInvalidateCache === "function") apiInvalidateCache("car_payment_cashbox");
+
+      // البحث عن سجل موجود في D1
+      // الأولوية: 1) _savedPayId (الـ UUID الفعلي في D1 المحفوظ بـ currentRec)
+      //           2) movementId (الأكثر ثباتاً)
+      //           3) _billingId
+      const savedPayId = currentRec._savedPayId || "";
+      const existingPayments = await loadPanelD1("car_payment_cashbox");
+
+      // تجميع كل السجلات المرتبطة
+      const relatedPays = existingPayments.filter(p =>
+        (savedPayId && p.id === savedPayId) ||
+        (movementId && p.movementId === movementId) ||
+        (billingId  && p._billingId === billingId)
+      );
+
+      // إذا وُجد أكثر من سجل (تكرار): احذف الزيادة واحتفظ بالأحدث
+      if (relatedPays.length > 1) {
+        const sortedPays = [...relatedPays].sort((a,b) => (b.updated_at || b.id || "").localeCompare(a.updated_at || a.id || ""));
+        for (let i = 1; i < sortedPays.length; i++) {
+          try { await apiDelete("car_payment_cashbox", sortedPays[i].id); } catch(e) { console.warn("delete dup pay:", e); }
+        }
+        // مسح الكاش بعد الحذف
+        _clearCache("car_payment_cashbox");
+        if (typeof apiInvalidateCache === "function") apiInvalidateCache("car_payment_cashbox");
+      }
+      const existingPay = relatedPays.length > 0
+        ? relatedPays.sort((a,b) => (b.updated_at || b.id || "").localeCompare(a.updated_at || a.id || ""))[0]
+        : null;
+
+      console.log("[CASHBOX SAVE] saveRec:", JSON.stringify(saveRec).slice(0,300));
+      console.log("[CASHBOX SAVE] existingPay:", existingPay ? existingPay.id : "none");
+
+      if (existingPay) {
+        saveRec.id  = existingPay.id;
+        saveRec._id = existingPay._id || existingPay.id;
+        try {
+          const updateResult = await apiUpdate("car_payment_cashbox", existingPay.id, saveRec);
+          console.log("[CASHBOX SAVE] update result:", JSON.stringify(updateResult));
+          _clearCache("car_payment_cashbox");
+          _clearCache("car_billing");
+        } catch(e) {
+          console.warn("D1 update car_payment_cashbox failed:", e);
+          showToast("⚠️ فشل الحفظ: " + e.message, "error");
+          return;
+        }
+      } else {
+        saveRec.id  = uid();
+        saveRec._id = saveRec.id;
+        try {
+          const createResult = await apiCreate("car_payment_cashbox", saveRec);
+          console.log("[CASHBOX SAVE] create result:", JSON.stringify(createResult));
+          _clearCache("car_payment_cashbox");
+          _clearCache("car_billing");
+        } catch(e) {
+          console.warn("D1 create car_payment_cashbox failed:", e);
+          showToast("⚠️ فشل الحفظ: " + e.message, "error");
+          return;
+        }
+      }
+
+      // مسح الكاش وتحديث localStorage بأحدث البيانات من D1
+      _clearCache("car_payment_cashbox");
+      _clearCache("car_billing");
+      _clearCache("car_movements");
+      try {
+        const freshPayments = await loadPanelD1("car_payment_cashbox");
+        localStorage.setItem("db_car_payment_cashbox", JSON.stringify(freshPayments));
+      } catch(e) {}
+
+      setStatus(existingPay ? "تم حفظ التعديل ✅" : "تم تسجيل الدفعة ✅");
+      showToast(existingPay ? "✅ تم حفظ التعديل بنجاح!" : "💾 تم تسجيل الدفعة بنجاح!", "success", 3500);
       window.selectedId = null;
       await renderAll();
       return;

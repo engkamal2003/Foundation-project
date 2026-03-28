@@ -63,6 +63,8 @@ function _setCache(panelKey, data) {
 function _clearCache(panelKey) {
   if (panelKey) delete _memCache[panelKey];
   else Object.keys(_memCache).forEach(k => delete _memCache[k]);
+  // مسح كاش API أيضاً للتأكد من جلب أحدث البيانات من D1
+  if (typeof apiInvalidateCache === "function") apiInvalidateCache(panelKey);
 }
 
 // ── تحميل بيانات من D1 (مع fallback إلى localStorage) ──────────
@@ -73,6 +75,16 @@ async function loadPanelD1(panelKey) {
 
   try {
     const data = await apiList(panelKey);
+    // إذا أعاد D1 مصفوفة فارغة لكن localStorage يحتوي بيانات → استخدم localStorage
+    // (حالة البيانات التجريبية المحلية التي لم تُرفع لـ D1 بعد)
+    if (Array.isArray(data) && data.length === 0) {
+      const localData = loadPanelLocal(panelKey);
+      if (localData && localData.length > 0) {
+        console.info("loadPanelD1: D1 empty for", panelKey, "- using localStorage data (", localData.length, "rows)");
+        _setCache(panelKey, localData);
+        return localData;
+      }
+    }
     _setCache(panelKey, data);
     return data;
   } catch (e) {
@@ -196,6 +208,18 @@ async function getPanelRows(panelKey) {
   if (panelKey === "car_billing") {
     const movements = await loadPanelD1("car_movements");
     const billings  = await loadPanelD1("car_billing");
+
+    // ── تحديث localStorage بالبيانات الحديثة من D1 لضمان تزامن computed() ──
+    try { localStorage.setItem(storageKey("car_movements"), JSON.stringify(movements)); } catch(e) {}
+    try { localStorage.setItem(storageKey("car_billing"),   JSON.stringify(billings));  } catch(e) {}
+    try {
+      const freshCars   = await loadPanelD1("cars");
+      const freshRates  = await loadPanelD1("car_rates");
+      const freshPayments = await loadPanelD1("car_payment_cashbox");
+      localStorage.setItem(storageKey("cars"),                JSON.stringify(freshCars));
+      localStorage.setItem(storageKey("car_rates"),           JSON.stringify(freshRates));
+      localStorage.setItem(storageKey("car_payment_cashbox"), JSON.stringify(freshPayments));
+    } catch(e) {}
 
     const billingMap = {};
     billings.forEach(b => {
@@ -354,7 +378,7 @@ async function getPanelRows(panelKey) {
     const newSavedEntries = [...savedEntries];
     let savedChanged = false;
 
-    const groupedRows = Object.values(groups).map(g => {
+    const groupedRows = Object.values(groups).filter(g => g.records.length >= 2).map(g => {
       const recs        = g.records;
       const totalAmt    = recs.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
       const transport   = recs.map(r => (r.transport || "").trim()).filter(Boolean)[0] || "";
@@ -427,6 +451,8 @@ async function getPanelRows(panelKey) {
   // ── لوحة حركة السيارات ──────────────────────────────────────
   if (panelKey === "car_movements") {
     const rows = await loadPanelD1("car_movements");
+    // تحديث localStorage لضمان تزامن computed() مع D1
+    try { localStorage.setItem(storageKey("car_movements"), JSON.stringify(rows)); } catch(e) {}
     const mvPanel = (typeof PANELS !== "undefined") && PANELS.find(p => p.key === "car_movements");
     if (mvPanel && mvPanel.computed) rows.forEach(r => mvPanel.computed(r));
     return rows;
@@ -436,25 +462,102 @@ async function getPanelRows(panelKey) {
   if (panelKey === "car_payment_cashbox") {
     const billingRows = await getPanelRows("car_billing");
     const savedPayments = await loadPanelD1("car_payment_cashbox");
+
+    // ── بناء خريطة الدفعات: المفتاح الأساسي هو movementId (ثابت دائماً)
+    // ثم billingId كاحتياط، ثم id السجل
     const savedMap = {};
+    // تجميع كل الدفعات لنفس movementId أو billingId (لأخذ الأحدث فقط)
+    const movPayMap = {};
     savedPayments.forEach(p => {
-      const key = p._billingId || p.movementId || p.id;
-      if (key) savedMap[key] = p;
+      // استخدم movementId كمفتاح أساسي إذا كان موجوداً وغير فارغ
+      const movKey  = (p.movementId  || "").trim();
+      const billKey = (p._billingId  || "").trim();
+      // المفتاح هو movementId إن وُجد، وإلا billingId
+      const mvKey = movKey || billKey;
+      if (!mvKey) return;  // تجاهل السجلات بدون مفاتيح
+      if (!movPayMap[mvKey]) movPayMap[mvKey] = [];
+      movPayMap[mvKey].push(p);
+    });
+    // لكل مفتاح: احتفظ بالأحدث فقط (sort by updated_at أو id)
+    Object.entries(movPayMap).forEach(([mvKey, recs]) => {
+      const latest = recs.sort((a,b) => (b.updated_at || b.id || "").localeCompare(a.updated_at || a.id || ""))[0];
+      savedMap[mvKey] = latest;
+      // أضف أيضاً مفتاح movementId و billingId بشكل منفصل إذا اختلفا
+      const movKey  = (latest.movementId  || "").trim();
+      const billKey = (latest._billingId  || "").trim();
+      if (movKey  && !savedMap[movKey])  savedMap[movKey]  = latest;
+      if (billKey && !savedMap[billKey]) savedMap[billKey] = latest;
+    });
+
+    // ── بناء خريطة entryNo من لوحة القيود المستحقة ──────────────
+    // لكل billing record نحدد entryNo الخاص به من القيود المستحقة
+    const savedCombined = await loadPanelD1("combined_entries");
+    const billingEntryMap = {};
+    savedCombined.forEach(e => {
+      if (!e.entryNo) return;
+      // قيود مجمعة مخصصة
+      if (e._customBillingIds) {
+        e._customBillingIds.split("|").forEach(id => { billingEntryMap[id.trim()] = e.entryNo; });
+      }
+      // قيود مفردة أو مجمعة عبر _billingId
+      if (e._billingId) billingEntryMap[e._billingId] = e.entryNo;
+      if (e.movementId) billingEntryMap[e.movementId] = e.entryNo;
+      // قيود مجمعة تلقائية عبر _groupKey
+      if (e._groupKey) billingEntryMap["__group__" + e._groupKey] = e.entryNo;
     });
 
     const paymentRows = [];
     billingRows.forEach((r, idx) => {
       const billingId = r.id || r._id || "";
-      const saved = savedMap[billingId] || savedMap[r.movementId] || {};
-      const total     = parseFloat(r.total)      || 0;
-      const paid      = parseFloat(r.paidAmount) || 0;
-      const paidAmountBefore = parseFloat(saved.paidAmountBefore) || 0;
-      const currentPaid      = parseFloat(saved.paidAmount ?? r.paidAmount) || paid;
-      const totalPaidAfter   = paidAmountBefore + currentPaid;
-      const remainingAfter   = Math.max(0, total - totalPaidAfter);
-      let status = r.accountingStatus || "";
-      if (saved.accountingStatus) status = saved.accountingStatus;
+      // البحث أولاً بـ movementId (الأكثر ثباتاً)، ثم بـ billingId
+      const saved = savedMap[r.movementId] || savedMap[billingId] || {};
+
+      // ── هل يوجد سجل دفع حقيقي (paidAmount > 0)؟ ───────────────
+      // السجل يُعتبر "مدفوعاً" فقط إذا كان paidAmount أو totalPaidAfter > 0
+      const hasSavedPayment = Object.keys(saved).length > 0 && 
+        (parseFloat(saved.paidAmount) > 0 || parseFloat(saved.totalPaidAfter) > 0);
+
+      // ── المبالغ: المصدر الأساسي للإجمالي دائماً من car_billing (الأحدث والأدق) ─
+      const total = parseFloat(r.total) || parseFloat(saved.totalAmount) || 0;
+
+      // المدفوع الإجمالي: من حقل totalPaidAfter المحفوظ (الأكثر دقة) أو من paidAmount
+      const totalPaidAfter = hasSavedPayment
+        ? (parseFloat(saved.totalPaidAfter) || parseFloat(saved.paidAmount) || 0)
+        : 0;
+
+      // المدفوع الحالي (آخر دفعة): paidAmount في السجل المحفوظ (فقط إذا كان سجل دفع حقيقي)
+      const currentPaid = hasSavedPayment ? (parseFloat(saved.paidAmount) || 0) : 0;
+
+      // المدفوع سابقاً = من السجل المحفوظ
+      const paidAmountBefore = hasSavedPayment ? (parseFloat(saved.paidAmountBefore) || 0) : 0;
+
+      // المتبقي = الإجمالي - الإجمالي المدفوع
+      const remainingAfter = Math.max(0, total - totalPaidAfter);
+
+      // حالة التحاسب: من السجل المحفوظ (أكثر دقة)، مع إعادة الحساب إذا لزم
+      let status = (hasSavedPayment && saved.accountingStatus) ? saved.accountingStatus : "";
+      if (!status) {
+        if (total <= 0) status = "";
+        else if (totalPaidAfter <= 0) status = "لم يُحاسب";
+        else if (remainingAfter <= 0) status = "محاسب كامل";
+        else status = "محاسب جزئي";
+      }
+
       const seq = saved.seq || (idx + 1);
+
+      // ── استخراج رقم القيد تلقائياً من entryNo ───────────────────
+      const autoEntryNo = r.entryNo
+        || billingEntryMap[billingId]
+        || billingEntryMap[r.movementId]
+        || "";
+      const referenceNo = saved.referenceNo || autoEntryNo;
+
+      // ── قيمة paidAmount المعروضة في النموذج ─────────────────────
+      // إذا لم يوجد سجل دفع حقيقي: اقترح المبلغ الكامل المستحق
+      // إذا كان هناك سجل حقيقي: استخدم المبلغ المحفوظ فعلاً
+      const displayPaidAmount = hasSavedPayment
+        ? String(Math.round(currentPaid))
+        : (total > 0 ? String(Math.round(total)) : "0");
 
       paymentRows.push({
         id:              "pay_" + billingId,
@@ -463,26 +566,31 @@ async function getPanelRows(panelKey) {
         code:            saved.code || ("PAY-" + String(seq).padStart(4, "0")),
         _billingId:      billingId,
         movementId:      r.movementId || "",
-        payDate:         saved.payDate  || r.payDate  || "",
-        paymentType:     saved.paymentType || (paid >= total && total > 0 ? "دفعة كاملة" : paid > 0 ? "دفعة جزئية" : ""),
-        paidBy:          saved.paidBy   || "",
-        referenceNo:     saved.referenceNo || "",
-        movementNo:      r.movementNo      || "",
-        activityDate:    r.activityDate    || "",
-        accountingParty: r.accountingParty || r.driverName || "",
-        beneficiaryName: r.beneficiaryName || "",
-        transport:       r.transport       || "",
-        driverName:      r.driverName      || "",
-        totalAmount:     total     > 0 ? String(Math.round(total))          : "",
-        paidAmountBefore: paidAmountBefore > 0 ? String(Math.round(paidAmountBefore)) : "",
-        paidAmount:      currentPaid > 0 ? String(Math.round(currentPaid))   : "",
-        totalPaidAfter:  totalPaidAfter > 0 ? String(Math.round(totalPaidAfter)) : "",
+        payDate:         (hasSavedPayment && saved.payDate) ? saved.payDate : "",
+        // إذا لم تُسجَّل دفعة حقيقية بعد: افتراضي "دفعة كاملة"
+        paymentType:     (hasSavedPayment && saved.paymentType) ? saved.paymentType : "دفعة كاملة",
+        paidBy:          (hasSavedPayment && saved.paidBy) ? saved.paidBy : "",
+        referenceNo,
+        movementNo:      r.movementNo          || "",
+        activityDate:    r.activityDate        || "",
+        accountingParty: r.accountingParty     || r.driverName || "",
+        beneficiaryName: r.beneficiaryName     || "",
+        transport:       r.transport           || "",
+        driverName:      r.driverName          || "",
+        totalAmount:     total > 0 ? String(Math.round(total)) : "",
+        paidAmountBefore: paidAmountBefore > 0 ? String(Math.round(paidAmountBefore)) : "0",
+        paidAmount:      displayPaidAmount,
+        totalPaidAfter:  totalPaidAfter > 0 ? String(Math.round(totalPaidAfter)) : "0",
         remainingAmount: String(Math.round(remainingAfter)),
         accountingStatus: status,
-        creditNo2:   saved.creditNo2  || r.creditNo2 || "",
-        statement:   saved.statement  || r.statement  || "",
-        notes:       saved.notes      || "",
-        _statementManual: !!saved._statementManual
+        periodFromDate:  (hasSavedPayment && saved.periodFromDate) ? saved.periodFromDate : "",
+        periodToDate:    (hasSavedPayment && saved.periodToDate)   ? saved.periodToDate   : "",
+        creditNo2:       saved.creditNo2       || r.creditNo2 || "",
+        statement:       (hasSavedPayment && saved.statement) ? saved.statement : "",
+        notes:           saved.notes           || "",
+        _statementManual: !!(hasSavedPayment && saved._statementManual),
+        // حفظ مفتاح البحث للاستخدام في crud.js
+        _savedPayId:     hasSavedPayment ? (saved.id || "") : ""
       });
     });
 

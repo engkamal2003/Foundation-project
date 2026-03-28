@@ -293,7 +293,14 @@ function mergeRow(row: Record<string, unknown>): Record<string, unknown> {
     }
   } catch {}
   const { data: _data, created_at: _ca, updated_at: _ua, ...rest } = row as Record<string, unknown>
-  return { ...extra, ...rest }
+  // دمج الحقلين: الأعمدة الفعلية لها الأولوية، لكن إذا كانت null/undefined نستخدم data JSON
+  const merged = { ...extra, ...rest }
+  for (const k of Object.keys(merged)) {
+    if ((merged[k] === null || merged[k] === undefined) && extra[k] != null) {
+      merged[k] = extra[k]
+    }
+  }
+  return merged
 }
 
 // ── GET /api/health - فحص الحالة ─────────────────────────────────
@@ -697,12 +704,12 @@ function getKnownFields(table: string): string[] {
     truck_items:         [...common, 'convoyNo', 'headNo', 'itemName', 'qty', 'unit'],
     cashbox:             [...common, 'expenseDate', 'payDate', 'spenderName', 'cashboxName', 'statement', 'amount', 'creditNo'],
     car_movements:       [...common, 'movementNo', 'requestDate', 'activityDate', 'day', 'entrySystem', 'transport', 'carNo', 'tourismCompany', 'driverName', 'beneficiary', 'beneficiaryName', 'place', 'activity'],
-    car_billing:         [...common, 'activityDate', 'accountingDate', 'movementNo', 'driverName', 'transport', 'ownership', 'accountingParty', 'beneficiaryName', 'fare', 'busCount', 'subtotal', 'extraAmount', 'extraAmountNote', 'discountAmount', 'discountNote', 'total', 'calcStatus', 'creditNo', 'entryNo'],
+    car_billing:         [...common, 'movementId', 'activityDate', 'accountingDate', 'movementNo', 'driverName', 'transport', 'ownership', 'accountingParty', 'beneficiaryName', 'fare', 'busCount', 'subtotal', 'extraAmount', 'extraAmountNote', 'discountAmount', 'discountNote', 'total', 'calcStatus', 'creditNo', 'entryNo'],
     car_rates:           [...common, 'carType', 'driverName', 'fullDayRate', 'halfDayRate', 'quickMissionRate', 'partialNearRate', 'partialFarRate', 'extraRate'],
     truck_rates:         [...common, 'truckType', 'transportType', 'destination', 'naulonRate', 'driverExpenses', 'scaleExpenses', 'otherExpenses'],
     convoy_billing:      [...common, 'accountingStatus', 'convoyBillingNo', 'accountingDate', 'headNo', 'truckType', 'driverName', 'ownership', 'truckAccountingParty', 'transportType', 'destination', 'naulon', 'driverExpenses', 'scaleExpenses', 'otherExpenses', 'subtotal', 'extraAmount', 'discountAmount', 'total', 'paidAmount', 'amount', 'payDate', 'beneficiary', 'beneficiaryName', 'delegation', 'creditNo', 'statement', 'notes'],
     combined_entries:    [...common, 'entryNo', 'entryCreatedAt', 'entryType', 'accountingParty', 'beneficiaryName', 'transport', 'movementNos', 'recordCount', 'totalAmount', 'mergedStatement', 'creditNo2', 'notes', '_groupKey', '_isSingle', '_isCustomGroup', '_billingId', 'movementId'],
-    car_payment_cashbox: [...common, 'accountingStatus', 'payDate', 'movementNo', 'accountingParty', 'beneficiaryName', 'transport', 'totalAmount', 'paidAmount', 'paidAmountBefore', 'remainingAmount', 'paymentType', 'paidBy', 'periodFromDate', 'periodFromDay', 'periodToDate', 'periodToDay', 'statement', 'creditNo2', 'referenceNo', 'notes'],
+    car_payment_cashbox: [...common, '_billingId', 'movementId', 'accountingStatus', 'payDate', 'movementNo', 'accountingParty', 'beneficiaryName', 'transport', 'driverName', 'totalAmount', 'paidAmount', 'paidAmountBefore', 'totalPaidAfter', 'remainingAmount', 'paymentType', 'paidBy', 'periodFromDate', 'periodFromDay', 'periodToDate', 'periodToDay', 'statement', 'creditNo2', 'referenceNo', 'notes'],
   }
   return specific[table] || common
 }

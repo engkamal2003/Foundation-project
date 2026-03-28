@@ -1061,6 +1061,13 @@
       window._entryFilter = { entryNo: efEntryNo };
     })();
 
+    // ── فلتر حركة بعينها (ef_movementNo): يأتي من صندوق الدفع عند النقر على رقم الحركة ──
+    (function readMovementFilter() {
+      const efMvNo = _urlParams.get("ef_movementNo");
+      if (!efMvNo) { window._movementExactFilter = null; return; }
+      window._movementExactFilter = { movementNo: efMvNo };
+    })();
+
     // ── دوال مساعدة مطلوبة من main.js ────────────────────
     function renderTabs() { /* لا تبويبات في هذه الصفحة */ }
 

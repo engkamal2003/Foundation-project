@@ -133,6 +133,9 @@ async function renderForm() {
     ? rows.find(x => (x.id === window.selectedId) || (x._id === window.selectedId))
     : await emptyRec(p);
 
+  // ✅ حفظ السجل المحمَّل عالمياً ليستخدمه btnSave كـ oldRec (لقراءة الحقول المعطَّلة بدقة)
+  window._currentFormRec = rec || null;
+
   // ✅ تغيير نص زر الحفظ حسب وضع التعديل أو الإضافة
   const btnSave = $("btnSave");
 
@@ -523,6 +526,45 @@ async function renderForm() {
     }
   }
 
+  // ✅ صندوق دفع حركات السيارات — تحسينات UX
+  if (p.key === "car_payment_cashbox") {
+    setTimeout(() => {
+      const paidAmountEl = document.getElementById("f_paidAmount");
+      const payDateEl    = document.getElementById("f_payDate");
+
+      // إذا كان مبلغ الدفعة صفراً أو فارغاً: أبرزه بلون أحمر لتنبيه المستخدم
+      const checkPaidAmount = () => {
+        if (!paidAmountEl) return;
+        const v = parseFloat(paidAmountEl.value) || 0;
+        if (v <= 0) {
+          paidAmountEl.style.border = "2px solid #ef4444";
+          paidAmountEl.style.background = "rgba(239,68,68,0.08)";
+        } else {
+          paidAmountEl.style.border = "";
+          paidAmountEl.style.background = "";
+        }
+      };
+      if (paidAmountEl) {
+        paidAmountEl.addEventListener("input",  checkPaidAmount);
+        paidAmountEl.addEventListener("change", checkPaidAmount);
+        checkPaidAmount();
+        // إذا كان صفراً: انقل التركيز للحقل لإعلام المستخدم
+        if ((parseFloat(paidAmountEl.value) || 0) <= 0) {
+          // لا ننقل التركيز تلقائياً لأن payDate قد يكون فارغاً أيضاً
+        }
+      }
+
+      // عند تأكيد تاريخ الدفع: انقل التركيز إلى مبلغ الدفعة تلقائياً
+      if (payDateEl && paidAmountEl) {
+        payDateEl.addEventListener("change", () => {
+          if ((parseFloat(paidAmountEl.value) || 0) <= 0) {
+            setTimeout(() => paidAmountEl.focus(), 50);
+          }
+        });
+      }
+    }, 100);
+  }
+
   // Convoy subgrid (stored locally)
   if (p.key === "convoys" && p.subgrid) {
     await renderConvoySubgrid(p, rec);
@@ -655,6 +697,12 @@ function getCurrentFormRec(panel, oldRec = null) {
       continue;
     }
 
+    // الحقول المعطَّلة (disabled): قراءة قيمتها من oldRec أولاً (أكثر دقة من el.value المعطَّل)
+    if (el && el.disabled && oldRec && oldRec[f.k] !== undefined) {
+      rec[f.k] = oldRec[f.k];
+      continue;
+    }
+
     rec[f.k] = el ? (el.value ?? "") : "";
   }
 
@@ -681,6 +729,37 @@ function validate(panel, rec) {
       }
     }
   }
+
+  // ── تحقق خاص بصندوق دفع حركات السيارات ──────────────────────
+  if (panel.key === "car_payment_cashbox") {
+    // تاريخ الدفع إجباري
+    if (!(rec.payDate || "").trim()) {
+      // تمييز الحقل بصرياً
+      const payDateEl = document.getElementById("f_payDate");
+      if (payDateEl) {
+        payDateEl.style.border = "2px solid #ef4444";
+        payDateEl.focus();
+        setTimeout(() => { payDateEl.style.border = ""; }, 3000);
+      }
+      return "تاريخ الدفع إجباري.";
+    }
+    // مبلغ الدفعة يجب أن يكون أكبر من صفر
+    const paid = parseFloat(rec.paidAmount) || 0;
+    if (paid <= 0) {
+      const paidAmountEl = document.getElementById("f_paidAmount");
+      if (paidAmountEl) {
+        paidAmountEl.style.border = "2px solid #ef4444";
+        paidAmountEl.style.background = "rgba(239,68,68,0.08)";
+        paidAmountEl.focus();
+        setTimeout(() => {
+          paidAmountEl.style.border = "";
+          paidAmountEl.style.background = "";
+        }, 3000);
+      }
+      return "مبلغ هذه الدفعة إجباري ويجب أن يكون أكبر من صفر.";
+    }
+  }
+
   return "";
 }
 

@@ -648,6 +648,23 @@ async function renderTable() {
     return;
   }
 
+  // ── مسح الـ cache لضمان جلب أحدث البيانات من D1 (مزامنة بين المستخدمين) ──
+  // نمسح cache اللوحة الحالية + اللوحات المرتبطة بها
+  const _relatedPanels = {
+    car_billing:         ["car_billing", "car_movements", "car_rates", "car_payment_cashbox", "cars"],
+    car_payment_cashbox: ["car_payment_cashbox", "car_billing", "car_movements", "combined_entries"],
+    car_movements:       ["car_movements"],
+    combined_entries:    ["combined_entries", "car_billing", "car_movements"],
+    convoy_billing:      ["convoy_billing", "convoys"],
+  };
+  const _toInvalidate = _relatedPanels[panel.key] || [panel.key];
+  if (typeof _clearCache === "function") {
+    _toInvalidate.forEach(k => _clearCache(k));
+  }
+  if (typeof apiInvalidateCache === "function") {
+    _toInvalidate.forEach(k => apiInvalidateCache(k));
+  }
+
   // ── إظهار/إخفاء زر "الممكن تجميعه" حسب اللوحة وعدم وجود فلتر قيد نشط ──
   const btnGroupable = $("btnGroupable");
   if (btnGroupable) {
@@ -834,6 +851,46 @@ async function renderTable() {
     const old2 = document.getElementById("_entryFilterBar");
     if (old2) old2.remove();
     if (!window._entryFilter) window._mvFilteredList = null;
+  }
+
+  // فلتر "عرض حركة محددة فقط" في لوحة حركة السيارات (قادم من صندوق الدفع)
+  if (panel.key === "car_movements" && window._movementExactFilter) {
+    const mef = window._movementExactFilter;
+    let noticeBar2 = document.getElementById("_mvExactFilterBar");
+    if (!noticeBar2) {
+      noticeBar2 = document.createElement("div");
+      noticeBar2.id = "_mvExactFilterBar";
+      noticeBar2.style.cssText = [
+        "display:flex","align-items:center","justify-content:space-between",
+        "background:#eff6ff","border:1.5px solid #38bdf8","border-radius:8px",
+        "padding:8px 16px","margin-bottom:10px","font-size:14px","font-weight:700",
+        "color:#0c4a6e","gap:12px","flex-wrap:wrap"
+      ].join(";");
+      const tableWrap = document.querySelector(".tablewrap");
+      if (tableWrap && tableWrap.parentNode) {
+        tableWrap.parentNode.insertBefore(noticeBar2, tableWrap);
+      }
+    }
+    noticeBar2.innerHTML = `
+      <span>🔍 عرض حركة واحدة فقط: <span style="color:#38bdf8">${mef.movementNo || ""}</span></span>
+      <button onclick="
+        window._movementExactFilter = null;
+        document.getElementById('_mvExactFilterBar').remove();
+        renderTable();
+      " style="
+        background:#38bdf8;color:#fff;border:none;border-radius:6px;
+        padding:4px 14px;cursor:pointer;font-size:13px;font-weight:700;
+      ">⬅ عرض جميع الحركات</button>
+    `;
+    const filtered2 = rows.filter(r =>
+      (r.movementNo || "").trim() === (mef.movementNo || "").trim()
+    );
+    window._mvFilteredList = applySort(filtered2);
+    $('kpiCount').textContent = window._mvFilteredList.length;
+  } else if (panel.key === "car_movements") {
+    const old3 = document.getElementById("_mvExactFilterBar");
+    if (old3) old3.remove();
+    if (!window._movementExactFilter) window._mvFilteredList = null;
   }
 
   // 1. فلتر البحث السريع
@@ -1375,6 +1432,31 @@ async function renderTable() {
           td.appendChild(link);
         }
 
+        // ── رقم الحركة في صندوق دفع حركات السيارات: رابط ينتقل إلى car_movements ──
+        if (c === "movementNo" && panel.key === "car_payment_cashbox" && value) {
+          td.innerHTML = "";
+          const link = document.createElement("span");
+          link.textContent = value;
+          link.title       = "انقر للانتقال إلى هذه الحركة في لوحة حركة السيارات";
+          link.style.cssText = [
+            "color:#38bdf8",
+            "font-weight:700",
+            "cursor:pointer",
+            "text-decoration:underline",
+            "border-radius:4px",
+            "padding:1px 4px",
+            "transition:background 0.15s"
+          ].join(";");
+          link.onmouseenter = () => { link.style.background = "rgba(56,189,248,0.15)"; };
+          link.onmouseleave = () => { link.style.background = "transparent"; };
+          link.onclick = (e) => {
+            e.stopPropagation();
+            const url = "panel.html?panel=car_movements&ef_movementNo=" + encodeURIComponent(value);
+            window.open(url, "_blank");
+          };
+          td.appendChild(link);
+        }
+
         // ── تمييز عمود رقم القيد في لوحة القيود المستحقة ────────
         if (c === "entryNo" && panel.key === "combined_entries" && value) {
           td.style.color      = "#10b981"; // أخضر
@@ -1568,7 +1650,8 @@ async function renderTable() {
   const paymentSummaryBar = $("paymentCashboxSummary");
   if (panel.key === "car_payment_cashbox" && paymentSummaryBar) {
     const sumTotal     = list.reduce((s, r) => s + (parseFloat(r.totalAmount)     || 0), 0);
-    const sumPaid      = list.reduce((s, r) => s + (parseFloat(r.paidAmount)      || 0), 0);
+    // استخدام totalPaidAfter (الإجمالي المدفوع الكامل) للعرض في شريط المجموع
+    const sumPaid      = list.reduce((s, r) => s + (parseFloat(r.totalPaidAfter || r.paidAmount) || 0), 0);
     const sumRemaining = list.reduce((s, r) => s + (parseFloat(r.remainingAmount) || 0), 0);
     const countFull    = list.filter(r => r.accountingStatus === "محاسب كامل").length;
     const countPartial = list.filter(r => r.accountingStatus === "محاسب جزئي").length;
