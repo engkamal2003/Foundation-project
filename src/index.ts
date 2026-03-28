@@ -286,13 +286,26 @@ const TABLE_MAP: Record<string, string> = {
 // ── مساعد: إضافة عمود إذا لم يكن موجوداً (auto-migration) ───────
 async function ensureColumn(db: D1Database, table: string, col: string, colType = 'TEXT'): Promise<void> {
   try {
-    await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${col} ${colType}`).run()
+    await db.prepare(`ALTER TABLE ${table} ADD COLUMN "${col}" ${colType}`).run()
   } catch {
     // العمود موجود مسبقاً — تجاهل الخطأ
   }
 }
 
+// ── مساعد: استخراج اسم العمود المفقود من رسالة الخطأ ──────────────
+// يدعم صيغتَي D1:
+//   "table X has no column named Y"  (D1 / SQLite INSERT)
+//   "no such column: Y"              (SQLite SELECT/UPDATE)
+function extractMissingColumn(msg: string): string | null {
+  let m = msg.match(/has no column named (\S+)/)
+  if (m) return m[1].replace(/[":]/g, '')
+  m = msg.match(/no such column: (\S+)/)
+  if (m) return m[1].replace(/[":]/g, '')
+  return null
+}
+
 // ── مساعد: تنفيذ INSERT/UPDATE مع إضافة الأعمدة تلقائياً عند الحاجة
+// يعيد المحاولة حتى 10 مرات لمعالجة أعمدة متعددة مفقودة
 async function safeDbRun(
   db: D1Database,
   table: string,
@@ -300,23 +313,44 @@ async function safeDbRun(
   vals: unknown[],
   knownData: Record<string, unknown>
 ): Promise<void> {
-  try {
-    await db.prepare(sql).bind(...vals).run()
-  } catch (e: unknown) {
-    const msg = String(e)
-    // no such column: XYZ → أضف العمود وأعد المحاولة
-    const m = msg.match(/no such column: (\S+)/)
-    if (m) {
-      const col = m[1]
-      const val = knownData[col]
-      const colType = (typeof val === 'number') ? 'REAL' : 'TEXT'
-      await ensureColumn(db, table, col, colType)
-      // أعد المحاولة مرة واحدة
+  const maxRetries = 10
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
       await db.prepare(sql).bind(...vals).run()
-    } else {
-      throw e
+      return // نجاح
+    } catch (e: unknown) {
+      const msg = String(e)
+      const col = extractMissingColumn(msg)
+      if (col && attempt < maxRetries) {
+        // اكتشف نوع العمود من القيمة المرسلة
+        const val = knownData[col]
+        const colType = (typeof val === 'number') ? 'REAL' : 'TEXT'
+        await ensureColumn(db, table, col, colType)
+        // استمر لمحاولة التالية
+      } else {
+        throw e
+      }
     }
   }
+}
+
+// ── مساعد: ضمان وجود جميع الأعمدة المطلوبة لـ car_payment_cashbox ─
+// يُنفَّذ مرة واحدة ويُتجاهل إذا كانت الأعمدة موجودة مسبقاً
+async function ensureCarPaymentColumns(db: D1Database): Promise<void> {
+  const cols: Array<{ name: string; type: string }> = [
+    { name: '_billingId',    type: 'TEXT' },
+    { name: 'movementId',    type: 'TEXT' },
+    { name: 'totalPaidAfter', type: 'REAL' },
+    { name: 'driverName',    type: 'TEXT' },
+  ]
+  for (const col of cols) {
+    await ensureColumn(db, 'car_payment_cashbox', col.name, col.type)
+  }
+}
+
+// ── مساعد: ضمان وجود عمود movementId في car_billing ──────────────
+async function ensureCarBillingColumns(db: D1Database): Promise<void> {
+  await ensureColumn(db, 'car_billing', 'movementId', 'TEXT')
 }
 
 // ── مساعد: دمج حقول الجدول مع حقل data (JSON) ───────────────────
@@ -588,6 +622,10 @@ app.post('/api/:panel', async (c) => {
   if (!permAllowed(_postUser.can_add)) return c.json({ error: 'ليس لديك صلاحية إضافة بيانات' }, 403)
 
   try {
+    // ضمان وجود الأعمدة المطلوبة (auto-migration بدون صلاحيات D1 إدارية)
+    if (panel === 'car_payment_cashbox') await ensureCarPaymentColumns(c.env.foundation_db)
+    if (panel === 'car_billing') await ensureCarBillingColumns(c.env.foundation_db)
+
     const body = await c.req.json() as Record<string, unknown>
 
     // استخراج الحقول المعروفة وتخزين الباقي في data
@@ -635,6 +673,10 @@ app.put('/api/:panel/:id', async (c) => {
   if (!permAllowed(_putUser.can_edit)) return c.json({ error: 'ليس لديك صلاحية تعديل البيانات' }, 403)
 
   try {
+    // ضمان وجود الأعمدة المطلوبة (auto-migration)
+    if (panel === 'car_payment_cashbox') await ensureCarPaymentColumns(c.env.foundation_db)
+    if (panel === 'car_billing') await ensureCarBillingColumns(c.env.foundation_db)
+
     const body = await c.req.json() as Record<string, unknown>
     const known = getKnownFields(table)
     const knownData: Record<string, unknown> = {}
