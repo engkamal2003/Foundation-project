@@ -799,11 +799,7 @@
               title="إلغاء التحديد">
               <i class="fas fa-xmark"></i>
             </button>
-            <button id="btnRefreshMini" onclick="refreshCurrentPanel()"
-              style="padding:4px 10px;font-size:12px;background:var(--accent,#6366f1);color:#fff;border:none;border-radius:6px;cursor:pointer"
-              title="تحديث البيانات">
-              <i class="fas fa-rotate-right"></i>
-            </button>
+
           </div>
         </div>
 
@@ -863,13 +859,7 @@
               <button class="secondary" id="btnClearSelect">
                 <i class="fas fa-xmark"></i> إلغاء تحديد
               </button>
-              <!-- زر تحديث الصفحة — يظهر في جميع اللوحات -->
-              <button class="secondary" id="btnRefreshPage"
-                onclick="refreshCurrentPanel()"
-                title="تحديث البيانات وإعادة تحميل الصفحة الحالية"
-                style="background:var(--accent,#6366f1);color:#fff;border:none">
-                <i class="fas fa-rotate-right"></i> تحديث
-              </button>
+
             </div>
           </div>
         </div>
@@ -1094,16 +1084,6 @@
 
     // ── دوال مساعدة مطلوبة من main.js ────────────────────
     function renderTabs() { /* لا تبويبات في هذه الصفحة */ }
-
-    // ── تحديث الصفحة الحالية مع حذف الكاش وإعادة التحميل ──
-    function refreshCurrentPanel() {
-      // مسح الكاش الخاص باللوحة النشطة
-      if (typeof _clearCache === "function" && window.activeKey) {
-        _clearCache(window.activeKey, true);
-      }
-      // إعادة تحميل الصفحة مع الحفاظ على نفس المعاملات في URL
-      location.reload();
-    }
 
     async function renderAll() {
       await renderForm();
