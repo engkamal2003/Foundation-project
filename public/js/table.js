@@ -1015,6 +1015,7 @@ async function renderTable() {
   fieldLabelMapForHeader["entryNo"]           = "رقم القيد";
   fieldLabelMapForHeader["entryCreatedAt"]    = "تاريخ إنشاء القيد";
   fieldLabelMapForHeader["calcStatus"]        = "حالة الاحتساب";
+  fieldLabelMapForHeader["_payBtn"]           = "الدفع";
 
   cols.forEach(c => {
     const th = document.createElement("th");
@@ -1462,6 +1463,60 @@ async function renderTable() {
           td.style.color      = "#10b981"; // أخضر
           td.style.fontWeight = "700";
           td.style.fontSize   = "12px";
+        }
+
+        // ── زر الدفع في لوحة القيود المستحقة ────────────────────────
+        if (c === "_payBtn" && panel.key === "combined_entries") {
+          td.innerHTML = "";
+          td.style.textAlign = "center";
+          td.style.padding   = "4px";
+
+          // تحديد حالة التحاسب لتلوين الزر
+          const accStatus = r.accountingStatus || "";
+          let btnColor = "#3b82f6";     // أزرق افتراضي (لم يُدفع)
+          let btnLabel = "دفع";
+          let btnTitle = "انقر للدفع في صندوق الدفع";
+
+          if (accStatus === "محاسب كامل") {
+            btnColor = "#10b981";  // أخضر
+            btnLabel = "مدفوع ✓";
+            btnTitle = "تم الدفع بالكامل — انقر لعرض تفاصيل الدفع";
+          } else if (accStatus === "محاسب جزئي") {
+            btnColor = "#f59e0b";  // برتقالي
+            btnLabel = "دفع جزئي";
+            btnTitle = "دفع جزئي — انقر لإتمام الدفع";
+          }
+
+          const btn = document.createElement("button");
+          btn.textContent = btnLabel;
+          btn.title       = btnTitle;
+          btn.style.cssText = [
+            `background:${btnColor}`,
+            "color:#fff",
+            "border:none",
+            "border-radius:6px",
+            "padding:3px 10px",
+            "font-size:12px",
+            "font-weight:700",
+            "cursor:pointer",
+            "white-space:nowrap",
+            "transition:opacity 0.15s"
+          ].join(";");
+          btn.onmouseenter = () => { btn.style.opacity = "0.85"; };
+          btn.onmouseleave = () => { btn.style.opacity = "1"; };
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            // استخدم _billingId للانتقال إلى صندوق الدفع
+            const billingId = r._billingId || "";
+            if (!billingId) {
+              alert("لا يوجد معرّف احتساب لهذا القيد");
+              return;
+            }
+            // الانتقال إلى لوحة صندوق الدفع مع تحديد السجل تلقائياً
+            const url = `panel.html?panel=car_payment_cashbox&pay_billingId=${encodeURIComponent(billingId)}`;
+            window.location.href = url;
+          };
+          td.appendChild(btn);
         }
 
         // ── تلوين خلية حالة الاحتساب في لوحة احتساب أجرة السيارات ──
