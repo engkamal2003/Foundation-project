@@ -1371,13 +1371,12 @@ const PANELS = [
     title: "لوحة القيود المستحقة (Local)",
     compactCols: [
       "entryNo",
-      "_payBtn",
       "entryCreatedAt",
       "entryType",
       "accountingParty", "beneficiaryName", "transport",
       "movementNos", "recordCount",
       "totalAmount",
-      "mergedStatement", "creditNo2", "notes"
+      "mergedStatement", "_payBtn", "creditNo2", "notes"
     ],
     fields: [
       { k: "entryCreatedAt",   label: "تاريخ إنشاء القيد",     type: "date",     req: false, readonly: true,

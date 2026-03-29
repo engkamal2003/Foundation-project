@@ -464,18 +464,18 @@ function getVisibleCols(panel) {
     const filter = window._combinedEntriesFilter || "جميع القيود";
 
     // أعمدة المفردة الموحّدة (تستخدم movementNo مثل car_movements وcar_billing)
-    const singleCols = ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "_payBtn", "movementNo", "accountingParty", "beneficiaryName",
+    const singleCols = ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "movementNo", "accountingParty", "beneficiaryName",
                         "transport", "totalAmount",
-                        "mergedStatement", "creditNo2", "notes"];
+                        "mergedStatement", "_payBtn", "creditNo2", "notes"];
 
     if (filter === "القيود المفردة") {
       return singleCols;
     }
     if (filter === "القيود المجمعة") {
-      return ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "_payBtn", "accountingParty", "beneficiaryName",
+      return ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "accountingParty", "beneficiaryName",
               "transport", "movementNos", "recordCount",
               "totalAmount",
-              "mergedStatement", "creditNo2", "notes"];
+              "mergedStatement", "_payBtn", "creditNo2", "notes"];
     }
     // ── الفلاتر الثلاثة: تُظهر حركات فردية فقط (بدون مجمعة) ──
     if (filter === "غير المحاسب عليها" ||
@@ -484,10 +484,10 @@ function getVisibleCols(panel) {
       return singleCols;
     }
     // جميع القيود: مجمعة + مفردة
-    return ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "_payBtn", "accountingParty", "beneficiaryName",
+    return ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "accountingParty", "beneficiaryName",
             "transport", "movementNos", "recordCount",
             "totalAmount",
-            "mergedStatement", "creditNo2", "notes"];
+            "mergedStatement", "_payBtn", "creditNo2", "notes"];
   }
 
   // ── صندوق دفع حركات السيارات: أعمدة ديناميكية حسب الفلتر ──

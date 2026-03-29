@@ -426,8 +426,13 @@ async function getPanelRows(panelKey) {
     }
 
     const allGroupedRows = [...customGroupRows, ...groupedRows];
-    if (activeFilter === "القيود المفردة")  return singleRows;
-    if (activeFilter === "القيود المجمعة") return allGroupedRows;
+
+    // ── إضافة رقم تسلسلي لكل الصفوف إن لم يكن موجوداً ──────────
+    const allRows = [...allGroupedRows, ...singleRows];
+    allRows.forEach((r, i) => { if (!r.seq) r.seq = i + 1; });
+
+    if (activeFilter === "القيود المفردة")  { singleRows.forEach((r,i) => { if (!r.seq) r.seq = i+1; }); return singleRows; }
+    if (activeFilter === "القيود المجمعة") { allGroupedRows.forEach((r,i) => { if (!r.seq) r.seq = i+1; }); return allGroupedRows; }
     if (activeFilter === "غير المحاسب عليها") {
       return singleRows.filter(r => !r.accountingStatus || r.accountingStatus === "لم يُحاسب" || r.accountingStatus === "");
     }
@@ -437,7 +442,7 @@ async function getPanelRows(panelKey) {
     if (activeFilter === "المحاسب عليها بالكامل") {
       return singleRows.filter(r => r.accountingStatus === "محاسب كامل");
     }
-    return [...allGroupedRows, ...singleRows];
+    return allRows;
   }
 
   // ── لوحة احتساب القوافل ─────────────────────────────────────
@@ -609,5 +614,10 @@ async function getPanelRows(panelKey) {
   }
 
   // ── باقي اللوحات: جلب من D1 مباشرة ─────────────────────────
-  return loadPanelD1(panelKey);
+  const rows = await loadPanelD1(panelKey);
+  // ضمان وجود seq و code في كل سجل (إذا كانت فارغة تُولَّد محلياً)
+  if (Array.isArray(rows) && rows.length > 0) {
+    ensureMetaLocal(panelKey, rows);
+  }
+  return rows;
 }
