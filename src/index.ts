@@ -279,8 +279,9 @@ const TABLE_MAP: Record<string, string> = {
   car_rates:           'car_rates',
   truck_rates:         'truck_rates',
   convoy_billing:      'convoy_billing',
-  combined_entries:    'combined_entries',
-  car_payment_cashbox: 'car_payment_cashbox',
+  combined_entries:          'combined_entries',
+  car_payment_cashbox:        'car_payment_cashbox',
+  car_payment_installments:   'car_payment_installments',
 }
 
 // ── مساعد: إضافة عمود إذا لم يكن موجوداً (auto-migration) ───────
@@ -561,6 +562,31 @@ app.get('/api/stats', async (c) => {
   } catch (e: unknown) { return c.json({ error: String(e) }, 500) }
 })
 
+// ── GET /api/car_payment_installments/by_billing/:billingId ──────
+// جلب جميع الدفعات لقيد معين مرتبة بالتاريخ
+app.get('/api/car_payment_installments/by_billing/:billingId', async (c) => {
+  const billingId = c.req.param('billingId')
+  const user = await getSessionUser(c)
+  if (!user) return c.json({ error: 'غير مخوّل' }, 401)
+  try {
+    // ضمان وجود الجدول (auto-migration)
+    await c.env.foundation_db.prepare(`
+      CREATE TABLE IF NOT EXISTS car_payment_installments (
+        id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+        billingId TEXT NOT NULL, movementId TEXT,
+        payDate TEXT, paidAmount REAL DEFAULT 0, paidBy TEXT, notes TEXT,
+        data TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `).run()
+    const rows = await c.env.foundation_db
+      .prepare(`SELECT * FROM car_payment_installments WHERE billingId = ? ORDER BY created_at ASC`)
+      .bind(billingId).all()
+    return c.json(rows.results || [])
+  } catch (e: unknown) {
+    return c.json({ error: String(e) }, 500)
+  }
+})
+
 // ── GET /api/:panel - جلب سجلات لوحة (مع Pagination اختياري) ────
 app.get('/api/:panel', async (c) => {
   const panel = c.req.param('panel')
@@ -625,6 +651,16 @@ app.post('/api/:panel', async (c) => {
     // ضمان وجود الأعمدة المطلوبة (auto-migration بدون صلاحيات D1 إدارية)
     if (panel === 'car_payment_cashbox') await ensureCarPaymentColumns(c.env.foundation_db)
     if (panel === 'car_billing') await ensureCarBillingColumns(c.env.foundation_db)
+    if (panel === 'car_payment_installments') {
+      await c.env.foundation_db.prepare(`
+        CREATE TABLE IF NOT EXISTS car_payment_installments (
+          id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+          billingId TEXT NOT NULL, movementId TEXT,
+          payDate TEXT, paidAmount REAL DEFAULT 0, paidBy TEXT, notes TEXT,
+          data TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `).run()
+    }
 
     const body = await c.req.json() as Record<string, unknown>
 
@@ -783,7 +819,8 @@ function getKnownFields(table: string): string[] {
     truck_rates:         [...common, 'truckType', 'transportType', 'destination', 'naulonRate', 'driverExpenses', 'scaleExpenses', 'otherExpenses'],
     convoy_billing:      [...common, 'accountingStatus', 'convoyBillingNo', 'accountingDate', 'headNo', 'truckType', 'driverName', 'ownership', 'truckAccountingParty', 'transportType', 'destination', 'naulon', 'driverExpenses', 'scaleExpenses', 'otherExpenses', 'subtotal', 'extraAmount', 'discountAmount', 'total', 'paidAmount', 'amount', 'payDate', 'beneficiary', 'beneficiaryName', 'delegation', 'creditNo', 'statement', 'notes'],
     combined_entries:    [...common, 'entryNo', 'entryCreatedAt', 'entryType', 'accountingParty', 'beneficiaryName', 'transport', 'movementNos', 'recordCount', 'totalAmount', 'mergedStatement', 'creditNo2', 'notes', '_groupKey', '_isSingle', '_isCustomGroup', '_billingId', 'movementId'],
-    car_payment_cashbox: [...common, '_billingId', 'movementId', 'accountingStatus', 'payDate', 'movementNo', 'accountingParty', 'beneficiaryName', 'transport', 'driverName', 'totalAmount', 'paidAmount', 'paidAmountBefore', 'totalPaidAfter', 'remainingAmount', 'paymentType', 'paidBy', 'periodFromDate', 'periodFromDay', 'periodToDate', 'periodToDay', 'statement', 'creditNo2', 'referenceNo', 'notes'],
+    car_payment_cashbox:        [...common, '_billingId', 'movementId', 'accountingStatus', 'payDate', 'movementNo', 'accountingParty', 'beneficiaryName', 'transport', 'driverName', 'totalAmount', 'paidAmount', 'paidAmountBefore', 'totalPaidAfter', 'remainingAmount', 'paymentType', 'paidBy', 'periodFromDate', 'periodFromDay', 'periodToDate', 'periodToDay', 'statement', 'creditNo2', 'referenceNo', 'notes'],
+    car_payment_installments:   [...common, 'billingId', 'movementId', 'payDate', 'paidAmount', 'paidBy', 'notes'],
   }
   return specific[table] || common
 }

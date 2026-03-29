@@ -570,6 +570,11 @@ async function renderForm() {
     await renderConvoySubgrid(p, rec);
   }
 
+  // ── سجل الدفعات الجزئية لصندوق الدفع ─────────────────────────
+  if (p.key === "car_payment_cashbox" && rec._billingId) {
+    await renderInstallmentsSubgrid(rec);
+  }
+
   // ✅ التعبئة التلقائية للمالك والرخصة في لوحة الشاحنات
   if (p.key === "trucks") {
     setTimeout(() => attachTruckPartAutoFill(), 0);
@@ -961,6 +966,327 @@ async function renderConvoySubgrid(p, rec) {
 
   setRows(rec._trucks || []);
   renderSub();
+}
+
+// =====================================================
+// Installments Subgrid - سجل الدفعات الجزئية لصندوق الدفع
+// =====================================================
+
+/**
+ * يرسم جدول الدفعات الجزئية السابقة وحقول إضافة دفعة جديدة
+ * داخل نموذج صندوق الدفع (car_payment_cashbox)
+ */
+async function renderInstallmentsSubgrid(rec) {
+  const billingId = rec._billingId || "";
+  if (!billingId) return;
+
+  const formArea = document.getElementById("formArea");
+  if (!formArea) return;
+
+  // ── جلب الدفعات الحالية ──────────────────────────────────────
+  const installments = (typeof getInstallmentsForBilling === "function")
+    ? await getInstallmentsForBilling(billingId)
+    : [];
+
+  const totalPaid   = installments.reduce((s, r) => s + (parseFloat(r.paidAmount) || 0), 0);
+  const totalAmount = parseFloat(rec.totalAmount) || 0;
+  const remaining   = Math.max(0, totalAmount - totalPaid);
+
+  // ── حاوية الـ subgrid ─────────────────────────────────────────
+  const wrap = document.createElement("div");
+  wrap.id = "installmentsSubgrid";
+  wrap.style.cssText = "margin-top:18px;";
+
+  // ── عنوان ────────────────────────────────────────────────────
+  const header = document.createElement("div");
+  header.style.cssText = [
+    "display:flex", "align-items:center", "justify-content:space-between",
+    "margin-bottom:10px", "padding:10px 14px",
+    "background:rgba(99,102,241,0.12)", "border-radius:10px",
+    "border:1px solid rgba(99,102,241,0.3)"
+  ].join(";");
+  header.innerHTML = `
+    <span style="font-weight:700;font-size:14px;color:var(--accent,#6366f1)">
+      <i class="fas fa-list-check"></i> سجل الدفعات الجزئية
+    </span>
+    <span style="font-size:12px;color:var(--text-muted,#94a3b8)">
+      عدد الدفعات: <b style="color:#fff">${installments.length}</b>
+    </span>
+  `;
+  wrap.appendChild(header);
+
+  // ── جدول الدفعات السابقة ─────────────────────────────────────
+  if (installments.length > 0) {
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "tablewrap";
+    tableWrap.style.marginBottom = "14px";
+
+    const table = document.createElement("table");
+    table.style.cssText = "width:100%;min-width:500px;font-size:13px;";
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>تاريخ الدفعة</th>
+          <th>المبلغ</th>
+          <th>الدافع</th>
+          <th>ملاحظة</th>
+        </tr>
+      </thead>
+    `;
+
+    const tbody = document.createElement("tbody");
+    installments.forEach((inst, i) => {
+      const tr = document.createElement("tr");
+      const fmtDate = (ds) => {
+        if (!ds) return "—";
+        const parts = ds.split("-");
+        return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : ds;
+      };
+      tr.innerHTML = `
+        <td style="text-align:center;color:#94a3b8">${i + 1}</td>
+        <td style="color:#38bdf8;font-weight:600">${fmtDate(inst.payDate)}</td>
+        <td style="color:#10b981;font-weight:700">${Number(inst.paidAmount || 0).toLocaleString("ar-SA")}</td>
+        <td>${inst.paidBy || "—"}</td>
+        <td style="color:#94a3b8;font-size:12px">${inst.notes || ""}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // صف المجموع
+    const totalTr = document.createElement("tr");
+    totalTr.style.cssText = "background:rgba(16,185,129,0.1);font-weight:700;border-top:2px solid rgba(16,185,129,0.4)";
+    totalTr.innerHTML = `
+      <td colspan="2" style="text-align:left;padding-right:8px;color:#10b981">إجمالي المدفوع</td>
+      <td style="color:#10b981;font-weight:800">${totalPaid.toLocaleString("ar-SA")}</td>
+      <td colspan="2"></td>
+    `;
+    tbody.appendChild(totalTr);
+
+    // صف المتبقي
+    if (totalAmount > 0) {
+      const remTr = document.createElement("tr");
+      remTr.style.cssText = `background:${remaining > 0 ? "rgba(239,68,68,0.1)" : "rgba(16,185,129,0.05)"};font-weight:700`;
+      remTr.innerHTML = `
+        <td colspan="2" style="text-align:left;padding-right:8px;color:${remaining > 0 ? "#ef4444" : "#10b981"}">
+          ${remaining > 0 ? "المبلغ المتبقي" : "✅ تم السداد بالكامل"}
+        </td>
+        <td style="color:${remaining > 0 ? "#ef4444" : "#10b981"};font-weight:800">
+          ${remaining > 0 ? remaining.toLocaleString("ar-SA") : "0"}
+        </td>
+        <td colspan="2"></td>
+      `;
+      tbody.appendChild(remTr);
+    }
+
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    wrap.appendChild(tableWrap);
+  } else {
+    const emptyMsg = document.createElement("div");
+    emptyMsg.style.cssText = "text-align:center;color:#64748b;padding:12px;font-size:13px;margin-bottom:12px;";
+    emptyMsg.innerHTML = `<i class="fas fa-inbox" style="margin-left:6px;"></i> لا توجد دفعات مسجلة بعد`;
+    wrap.appendChild(emptyMsg);
+  }
+
+  // ── قسم إضافة دفعة جديدة ──────────────────────────────────────
+  const addSection = document.createElement("div");
+  addSection.style.cssText = [
+    "padding:14px", "border-radius:10px",
+    "background:rgba(16,185,129,0.07)",
+    "border:1px solid rgba(16,185,129,0.25)"
+  ].join(";");
+
+  const addTitle = document.createElement("div");
+  addTitle.style.cssText = "font-weight:700;font-size:13px;color:#10b981;margin-bottom:10px;";
+  addTitle.innerHTML = `<i class="fas fa-plus-circle"></i> إضافة دفعة جديدة`;
+  addSection.appendChild(addTitle);
+
+  // ── صف حقول الدفعة الجديدة ───────────────────────────────────
+  const fieldsRow = document.createElement("div");
+  fieldsRow.className = "row";
+  fieldsRow.style.cssText = "gap:10px;align-items:end;flex-wrap:wrap;";
+
+  // حقل التاريخ
+  const dateCell = document.createElement("div");
+  dateCell.style.flex = "1";
+  dateCell.innerHTML = `<label style="font-size:12px">تاريخ الدفعة <span style="color:#ef4444">*</span></label>`;
+  const dateInput = document.createElement("input");
+  dateInput.type = "date";
+  dateInput.id   = "inst_payDate";
+  dateInput.value = rec.payDate || new Date().toISOString().split("T")[0];
+  dateInput.style.cssText = "width:100%;";
+  dateCell.appendChild(dateInput);
+  fieldsRow.appendChild(dateCell);
+
+  // حقل المبلغ
+  const amtCell = document.createElement("div");
+  amtCell.style.flex = "1";
+  amtCell.innerHTML = `<label style="font-size:12px">مبلغ الدفعة <span style="color:#ef4444">*</span></label>`;
+  const amtInput = document.createElement("input");
+  amtInput.type        = "number";
+  amtInput.id          = "inst_paidAmount";
+  amtInput.placeholder = "أدخل المبلغ";
+  amtInput.min         = "0";
+  // اقتراح المبلغ المتبقي تلقائياً
+  amtInput.value = remaining > 0 ? String(Math.round(remaining)) : "";
+  amtInput.style.cssText = "width:100%;";
+  amtCell.appendChild(amtInput);
+  fieldsRow.appendChild(amtCell);
+
+  // حقل الدافع
+  const paidByCell = document.createElement("div");
+  paidByCell.style.flex = "1.5";
+  paidByCell.innerHTML = `<label style="font-size:12px">اسم الدافع</label>`;
+  const paidByInput = document.createElement("input");
+  paidByInput.type        = "text";
+  paidByInput.id          = "inst_paidBy";
+  paidByInput.placeholder = "اسم الدافع";
+  paidByInput.value       = rec.paidBy || "";
+  paidByInput.style.cssText = "width:100%;";
+  paidByCell.appendChild(paidByInput);
+  fieldsRow.appendChild(paidByCell);
+
+  // حقل الملاحظة
+  const notesCell = document.createElement("div");
+  notesCell.style.flex = "2";
+  notesCell.innerHTML = `<label style="font-size:12px">ملاحظة</label>`;
+  const notesInput = document.createElement("input");
+  notesInput.type        = "text";
+  notesInput.id          = "inst_notes";
+  notesInput.placeholder = "ملاحظة اختيارية";
+  notesInput.style.cssText = "width:100%;";
+  notesCell.appendChild(notesInput);
+  fieldsRow.appendChild(notesCell);
+
+  addSection.appendChild(fieldsRow);
+
+  // ── زر إضافة الدفعة ──────────────────────────────────────────
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "margin-top:10px;display:flex;gap:8px;";
+
+  const saveInstBtn = document.createElement("button");
+  saveInstBtn.className = "success";
+  saveInstBtn.style.cssText = "padding:8px 18px;font-size:13px;font-weight:700;";
+  saveInstBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> حفظ الدفعة`;
+
+  const msgEl = document.createElement("span");
+  msgEl.id = "inst_msg";
+  msgEl.style.cssText = "font-size:12px;align-self:center;";
+
+  btnRow.appendChild(saveInstBtn);
+  btnRow.appendChild(msgEl);
+  addSection.appendChild(btnRow);
+
+  // ── منطق حفظ الدفعة الجديدة ──────────────────────────────────
+  saveInstBtn.onclick = async () => {
+    const payDate   = document.getElementById("inst_payDate")?.value?.trim() || "";
+    const paidAmt   = parseFloat(document.getElementById("inst_paidAmount")?.value) || 0;
+    const paidBy    = document.getElementById("inst_paidBy")?.value?.trim() || "";
+    const notes     = document.getElementById("inst_notes")?.value?.trim() || "";
+
+    if (!payDate) {
+      msgEl.style.color = "#ef4444";
+      msgEl.textContent = "⚠️ تاريخ الدفعة مطلوب";
+      return;
+    }
+    if (paidAmt <= 0) {
+      msgEl.style.color = "#ef4444";
+      msgEl.textContent = "⚠️ المبلغ يجب أن يكون أكبر من صفر";
+      return;
+    }
+
+    saveInstBtn.disabled = true;
+    saveInstBtn.textContent = "جارٍ الحفظ...";
+    msgEl.textContent = "";
+
+    try {
+      const newInst = {
+        id:         crypto.randomUUID(),
+        billingId:  billingId,
+        movementId: rec.movementId || "",
+        payDate,
+        paidAmount: paidAmt,
+        paidBy,
+        notes,
+        seq:        (installments.length + 1),
+        code:       "INST-" + String(installments.length + 1).padStart(3, "0")
+      };
+
+      await apiCreate("car_payment_installments", newInst);
+
+      // ── تحديث سجل car_payment_cashbox بالإجمالي الجديد ────────
+      const newTotal = totalPaid + paidAmt;
+      const newRemaining = Math.max(0, totalAmount - newTotal);
+      const newStatus = newRemaining <= 0 ? "محاسب كامل" : "محاسب جزئي";
+
+      // حفظ آخر دفعة في car_payment_cashbox للعرض في اللوحة
+      const cashboxRec = Object.assign({}, rec, {
+        payDate,
+        paidBy,
+        paidAmount:      String(paidAmt),
+        paidAmountBefore: String(totalPaid),
+        totalPaidAfter:  String(newTotal),
+        remainingAmount: String(newRemaining),
+        accountingStatus: newStatus,
+        _savedPayId:     rec._savedPayId || rec.id || ("pay_" + billingId)
+      });
+      // إزالة الحقول غير الضرورية
+      delete cashboxRec._id;
+
+      // البحث عن id حقيقي للسجل في D1
+      if (rec._savedPayId) {
+        await apiUpdate("car_payment_cashbox", rec._savedPayId, cashboxRec);
+      } else {
+        cashboxRec.id = crypto.randomUUID();
+        await apiCreate("car_payment_cashbox", cashboxRec);
+      }
+
+      // تحديث كاش اللوحات
+      if (typeof _clearCache === "function") {
+        _clearCache("car_payment_cashbox", true);
+        _clearCache("car_billing", true);
+      }
+
+      msgEl.style.color = "#10b981";
+      msgEl.textContent = "✅ تم حفظ الدفعة بنجاح";
+
+      // إعادة رسم الـ subgrid بعد ثانية لتحديث الجدول
+      setTimeout(async () => {
+        const existingSub = document.getElementById("installmentsSubgrid");
+        if (existingSub) existingSub.remove();
+        // تحديث الحقول الرئيسية في النموذج
+        const tpaEl = document.getElementById("f_totalPaidAfter");
+        const remEl = document.getElementById("f_remainingAmount");
+        const stEl  = document.getElementById("f_accountingStatus");
+        const pbEl  = document.getElementById("f_paidAmountBefore");
+        if (tpaEl) tpaEl.value = String(newTotal);
+        if (remEl) remEl.value = String(newRemaining);
+        if (stEl)  stEl.value  = newStatus;
+        if (pbEl)  pbEl.value  = String(totalPaid);
+        // إعادة رسم الـ subgrid
+        const updatedRec = Object.assign({}, rec, {
+          totalPaidAfter: String(newTotal),
+          remainingAmount: String(newRemaining),
+          accountingStatus: newStatus,
+          paidAmountBefore: String(totalPaid),
+          payDate, paidBy
+        });
+        await renderInstallmentsSubgrid(updatedRec);
+        if (typeof renderAll === "function") renderAll();
+      }, 800);
+
+    } catch (err) {
+      msgEl.style.color = "#ef4444";
+      msgEl.textContent = "⚠️ فشل الحفظ: " + (err.message || err);
+    } finally {
+      saveInstBtn.disabled = false;
+      saveInstBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> حفظ الدفعة`;
+    }
+  };
+
+  wrap.appendChild(addSection);
+  formArea.appendChild(wrap);
 }
 
 // =====================================================

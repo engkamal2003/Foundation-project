@@ -39,6 +39,33 @@ function storageKey(panelKey) {
   return "db_" + panelKey;
 }
 
+// ── جلب الدفعات الجزئية لقيد معين من D1 ──────────────────────────
+// تُرجع مصفوفة الدفعات مرتبةً بالتاريخ من الأقدم للأحدث
+async function getInstallmentsForBilling(billingId) {
+  if (!billingId) return [];
+  try {
+    const token = (typeof _getAuthToken === "function") ? _getAuthToken() : (window._authToken || "");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    const res = await fetch(
+      `/api/car_payment_installments/by_billing/${encodeURIComponent(billingId)}`,
+      { headers }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn("getInstallmentsForBilling failed:", e);
+    return [];
+  }
+}
+
+// ── حساب إجمالي الدفعات لقيد معين ──────────────────────────────
+async function getTotalPaidFromInstallments(billingId) {
+  const rows = await getInstallmentsForBilling(billingId);
+  return rows.reduce((sum, r) => sum + (parseFloat(r.paidAmount) || 0), 0);
+}
+
 // ── مساعد: تاريخ اليوم بصيغة YYYY-MM-DD ──────────────────────
 function todayDateStr() {
   const d = new Date();
