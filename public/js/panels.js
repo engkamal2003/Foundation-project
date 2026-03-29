@@ -1370,8 +1370,8 @@ const PANELS = [
     key: "combined_entries",
     title: "لوحة القيود المستحقة (Local)",
     compactCols: [
-      "_payBtn",
       "entryNo",
+      "_payBtn",
       "entryCreatedAt",
       "entryType",
       "accountingParty", "beneficiaryName", "transport",

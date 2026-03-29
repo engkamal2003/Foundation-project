@@ -464,7 +464,7 @@ function getVisibleCols(panel) {
     const filter = window._combinedEntriesFilter || "جميع القيود";
 
     // أعمدة المفردة الموحّدة (تستخدم movementNo مثل car_movements وcar_billing)
-    const singleCols = ["_payBtn", "seq", "code", "entryCreatedAt", "entryType", "entryNo", "movementNo", "accountingParty", "beneficiaryName",
+    const singleCols = ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "_payBtn", "movementNo", "accountingParty", "beneficiaryName",
                         "transport", "totalAmount",
                         "mergedStatement", "creditNo2", "notes"];
 
@@ -472,7 +472,7 @@ function getVisibleCols(panel) {
       return singleCols;
     }
     if (filter === "القيود المجمعة") {
-      return ["_payBtn", "seq", "code", "entryCreatedAt", "entryType", "entryNo", "accountingParty", "beneficiaryName",
+      return ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "_payBtn", "accountingParty", "beneficiaryName",
               "transport", "movementNos", "recordCount",
               "totalAmount",
               "mergedStatement", "creditNo2", "notes"];
@@ -484,7 +484,7 @@ function getVisibleCols(panel) {
       return singleCols;
     }
     // جميع القيود: مجمعة + مفردة
-    return ["_payBtn", "seq", "code", "entryCreatedAt", "entryType", "entryNo", "accountingParty", "beneficiaryName",
+    return ["seq", "code", "entryCreatedAt", "entryType", "entryNo", "_payBtn", "accountingParty", "beneficiaryName",
             "transport", "movementNos", "recordCount",
             "totalAmount",
             "mergedStatement", "creditNo2", "notes"];
