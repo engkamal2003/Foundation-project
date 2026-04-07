@@ -459,15 +459,122 @@ const PANELS = [
 
   {
     key: "warehouses",
-    title: "لوحة إدخال المخازن وتفاصيلها (Local)",
-    compactCols: ["name", "location", "manager"],
+    title: "لوحة إدخال المخازن وتفاصيلها",
+    compactCols: ["name", "type", "location", "manager"],
     fields: [
-      { k: "name", label: "اسم المخزن", req: true, hint: "", listFrom: "warehouses.name" },
-      { k: "location", label: "الموقع", req: false, hint: "مدينة/حي", listFrom: "warehouses.location" },
-      { k: "manager", label: "المسؤول", req: false, hint: "", listFrom: "warehouses.manager" },
-      { k: "phone", label: "هاتف", req: false, type: "phone", hint: "" },
-      { k: "capacity", label: "السعة (اختياري)", req: false, hint: "" },
-      { k: "notes", label: "تفاصيل/ملاحظات", type: "textarea", req: false }
+      { k: "name",     label: "اسم المخزن",       req: true,  hint: "", listFrom: "warehouses.name" },
+      { k: "type",     label: "نوع المخزن",        req: true,
+        type: "select", options: ["غذائي", "كيماوي", "زراعي", "خطير", "عام"],
+        hint: "تحديد النوع يمنع خلط المواد" },
+      { k: "location", label: "الموقع",            req: false, hint: "مدينة/حي", listFrom: "warehouses.location" },
+      { k: "manager",  label: "المسؤول",           req: false, hint: "", listFrom: "warehouses.manager" },
+      { k: "phone",    label: "هاتف",              req: false, type: "phone", hint: "" },
+      { k: "capacity", label: "السعة التقريبية",   req: false, hint: "مثال: 10 طن" },
+      { k: "notes",    label: "تفاصيل/ملاحظات",   type: "textarea", req: false }
+    ]
+  },
+
+  {
+    key: "warehouse_locations",
+    title: "أماكن التخزين داخل المخازن",
+    compactCols: ["warehouse", "name"],
+    fields: [
+      { k: "warehouse", label: "المخزن",              req: true,  hint: "اختر المخزن", listFrom: "warehouses.name" },
+      { k: "name",      label: "اسم المكان/الرف",     req: true,  hint: "مثال: رف A1 / صف 3", listFrom: "warehouse_locations.name" },
+      { k: "notes",     label: "ملاحظات",             type: "textarea", req: false }
+    ]
+  },
+
+  {
+    key: "stock_items",
+    title: "أصناف المخزن",
+    compactCols: ["name", "brand", "category", "unit_main"],
+    fields: [
+      { k: "name",         label: "اسم الصنف",          req: true,  hint: "", listFrom: "stock_items.name" },
+      { k: "name_en",      label: "الاسم الإنجليزي",    req: false, hint: "" },
+      { k: "brand",        label: "الماركة/المنتج",      req: false, hint: "", listFrom: "stock_items.brand" },
+      { k: "manufacturer", label: "المصنع",              req: false, hint: "", listFrom: "stock_items.manufacturer" },
+      { k: "origin",       label: "بلد المنشأ",          req: false, hint: "", listFrom: "stock_items.origin" },
+      { k: "category",     label: "نوع الصنف",           req: true,
+        type: "select", options: ["غذائي", "كيماوي", "زراعي", "خطير", "أخرى"] },
+      { k: "unit_main",    label: "الوحدة الأساسية",     req: true,  hint: "مثال: كيلو", listFrom: "stock_items.unit_main" },
+      { k: "unit2_name",   label: "الوحدة الثانوية 2",  req: false, hint: "مثال: كيس", listFrom: "stock_items.unit2_name" },
+      { k: "unit2_qty",    label: "كمية الوحدة 2",       req: false, hint: "كم كيلو في الكيس؟" },
+      { k: "unit3_name",   label: "الوحدة الثانوية 3",  req: false, hint: "مثال: ربطة" },
+      { k: "unit3_qty",    label: "كمية الوحدة 3",       req: false, hint: "كم كيلو في الربطة؟" },
+      { k: "notes",        label: "ملاحظات/مواصفات",    type: "textarea", req: false }
+    ]
+  },
+
+  {
+    key: "stock_in",
+    title: "حركة وارد — إدخال المخزن",
+    compactCols: ["item_name", "brand", "qty", "unit", "expiry_date", "warehouse", "batch_no"],
+    fields: [
+      { k: "item_name",       label: "اسم الصنف",          req: true,  hint: "", listFrom: "stock_items.name" },
+      { k: "brand",           label: "الماركة",             req: false, hint: "", listFrom: "stock_items.brand" },
+      { k: "batch_no",        label: "رقم الدفعة/اللوت",   req: false, hint: "اختياري" },
+      { k: "qty",             label: "الكمية",              req: true,  hint: "الكمية بالوحدة الأساسية" },
+      { k: "unit",            label: "الوحدة",              req: false, hint: "كيلو/كيس/باليت...", listFrom: "stock_items.unit_main" },
+      { k: "production_date", label: "تاريخ الإنتاج",       req: true,  type: "date", hint: "" },
+      { k: "expiry_date",     label: "تاريخ الانتهاء",      req: true,  type: "date", hint: "" },
+      { k: "warehouse",       label: "المخزن",              req: true,  hint: "", listFrom: "warehouses.name" },
+      { k: "location",        label: "المكان داخل المخزن", req: false, hint: "رف/صف", listFrom: "warehouse_locations.name" },
+      { k: "ref_no",          label: "رقم المرجع",          req: false, hint: "رقم الفاتورة أو أمر الاستلام" },
+      { k: "notes",           label: "ملاحظات",             type: "textarea", req: false }
+    ]
+  },
+
+  {
+    key: "stock_out",
+    title: "حركة صادر — إخراج من المخزن",
+    compactCols: ["item_name", "qty", "unit", "warehouse", "batch_no"],
+    fields: [
+      { k: "item_name",   label: "اسم الصنف",          req: true,  hint: "⚡ FEFO: يُقترح أقرب دفعة للانتهاء", listFrom: "stock_items.name" },
+      { k: "brand",       label: "الماركة",             req: false, hint: "", listFrom: "stock_items.brand" },
+      { k: "batch_no",    label: "رقم الدفعة",         req: false, hint: "FEFO: استخدم الأقدم أولاً" },
+      { k: "qty",         label: "الكمية",              req: true,  hint: "" },
+      { k: "unit",        label: "الوحدة",              req: false, hint: "", listFrom: "stock_items.unit_main" },
+      { k: "warehouse",   label: "المخزن",              req: true,  hint: "", listFrom: "warehouses.name" },
+      { k: "location",    label: "المكان داخل المخزن", req: false, hint: "", listFrom: "warehouse_locations.name" },
+      { k: "ref_no",      label: "رقم المرجع",          req: false, hint: "رقم أمر الإخراج" },
+      { k: "notes",       label: "ملاحظات",             type: "textarea", req: false }
+    ]
+  },
+
+  {
+    key: "stock_transfer",
+    title: "تحويل داخلي بين المخازن",
+    compactCols: ["item_name", "qty", "unit", "from_warehouse", "to_warehouse", "batch_no"],
+    fields: [
+      { k: "item_name",      label: "اسم الصنف",            req: true,  hint: "", listFrom: "stock_items.name" },
+      { k: "brand",          label: "الماركة",               req: false, hint: "" },
+      { k: "batch_no",       label: "رقم الدفعة",           req: false, hint: "يُنقل مع الدفعة الأصلية" },
+      { k: "qty",            label: "الكمية المحولة",        req: true,  hint: "" },
+      { k: "unit",           label: "الوحدة",                req: false, hint: "", listFrom: "stock_items.unit_main" },
+      { k: "production_date",label: "تاريخ الإنتاج",         req: false, type: "date" },
+      { k: "expiry_date",    label: "تاريخ الانتهاء",        req: false, type: "date" },
+      { k: "from_warehouse", label: "من مخزن",               req: true,  hint: "", listFrom: "warehouses.name" },
+      { k: "to_warehouse",   label: "إلى مخزن",              req: true,  hint: "", listFrom: "warehouses.name" },
+      { k: "notes",          label: "ملاحظات",               type: "textarea", req: false }
+    ]
+  },
+
+  {
+    key: "stock_damaged",
+    title: "سجل التالف والمفقود",
+    compactCols: ["item_name", "qty", "unit", "warehouse", "damage_reason"],
+    fields: [
+      { k: "item_name",     label: "اسم الصنف",     req: true,  hint: "", listFrom: "stock_items.name" },
+      { k: "brand",         label: "الماركة",        req: false, hint: "" },
+      { k: "batch_no",      label: "رقم الدفعة",    req: false, hint: "" },
+      { k: "qty",           label: "الكمية التالفة", req: true,  hint: "" },
+      { k: "unit",          label: "الوحدة",         req: false, hint: "", listFrom: "stock_items.unit_main" },
+      { k: "warehouse",     label: "المخزن",         req: false, hint: "", listFrom: "warehouses.name" },
+      { k: "damage_reason", label: "سبب التلف",      req: true,
+        type: "select", options: ["انتهاء الصلاحية", "تخزين خاطئ", "تلف أثناء النقل", "حريق/فيضان", "أخرى"] },
+      { k: "responsible",   label: "المسؤول",        req: false, hint: "" },
+      { k: "notes",         label: "ملاحظات",        type: "textarea", req: false }
     ]
   },
 
@@ -1370,14 +1477,13 @@ const PANELS = [
     key: "combined_entries",
     title: "لوحة القيود المستحقة (Local)",
     compactCols: [
-      "_payBtn",
       "entryNo",
       "entryCreatedAt",
       "entryType",
       "accountingParty", "beneficiaryName", "transport",
       "movementNos", "recordCount",
       "totalAmount",
-      "mergedStatement", "creditNo2", "notes"
+      "mergedStatement", "_payBtn", "creditNo2", "notes"
     ],
     fields: [
       { k: "entryCreatedAt",   label: "تاريخ إنشاء القيد",     type: "date",     req: false, readonly: true,

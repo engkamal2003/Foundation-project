@@ -264,6 +264,12 @@ const TABLE_MAP: Record<string, string> = {
   supervisors:         'supervisors',
   executors:           'executors',
   warehouses:          'warehouses',
+  warehouse_locations: 'warehouse_locations',
+  stock_items:         'stock_items',
+  stock_in:            'stock_in',
+  stock_out:           'stock_out',
+  stock_transfer:      'stock_transfer',
+  stock_damaged:       'stock_damaged',
   associations:        'associations',
   contractors:         'contractors',
   suppliers:           'suppliers',
@@ -279,8 +285,9 @@ const TABLE_MAP: Record<string, string> = {
   car_rates:           'car_rates',
   truck_rates:         'truck_rates',
   convoy_billing:      'convoy_billing',
-  combined_entries:    'combined_entries',
-  car_payment_cashbox: 'car_payment_cashbox',
+  combined_entries:          'combined_entries',
+  car_payment_cashbox:        'car_payment_cashbox',
+  car_payment_installments:   'car_payment_installments',
 }
 
 // ── مساعد: إضافة عمود إذا لم يكن موجوداً (auto-migration) ───────
@@ -342,6 +349,8 @@ async function ensureCarPaymentColumns(db: D1Database): Promise<void> {
     { name: 'movementId',    type: 'TEXT' },
     { name: 'totalPaidAfter', type: 'REAL' },
     { name: 'driverName',    type: 'TEXT' },
+    { name: '_parentPayId',  type: 'TEXT' },
+    { name: 'subSeq',        type: 'INTEGER' },
   ]
   for (const col of cols) {
     await ensureColumn(db, 'car_payment_cashbox', col.name, col.type)
@@ -351,6 +360,11 @@ async function ensureCarPaymentColumns(db: D1Database): Promise<void> {
 // ── مساعد: ضمان وجود عمود movementId في car_billing ──────────────
 async function ensureCarBillingColumns(db: D1Database): Promise<void> {
   await ensureColumn(db, 'car_billing', 'movementId', 'TEXT')
+}
+
+async function ensureCombinedEntriesColumns(db: D1Database): Promise<void> {
+  await ensureColumn(db, 'combined_entries', '_customGroupKey',  'TEXT')
+  await ensureColumn(db, 'combined_entries', '_customBillingIds','TEXT')
 }
 
 // ── مساعد: دمج حقول الجدول مع حقل data (JSON) ───────────────────
@@ -561,6 +575,31 @@ app.get('/api/stats', async (c) => {
   } catch (e: unknown) { return c.json({ error: String(e) }, 500) }
 })
 
+// ── GET /api/car_payment_installments/by_billing/:billingId ──────
+// جلب جميع الدفعات لقيد معين مرتبة بالتاريخ
+app.get('/api/car_payment_installments/by_billing/:billingId', async (c) => {
+  const billingId = c.req.param('billingId')
+  const user = await getSessionUser(c)
+  if (!user) return c.json({ error: 'غير مخوّل' }, 401)
+  try {
+    // ضمان وجود الجدول (auto-migration)
+    await c.env.foundation_db.prepare(`
+      CREATE TABLE IF NOT EXISTS car_payment_installments (
+        id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+        billingId TEXT NOT NULL, movementId TEXT,
+        payDate TEXT, paidAmount REAL DEFAULT 0, paidBy TEXT, notes TEXT,
+        data TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `).run()
+    const rows = await c.env.foundation_db
+      .prepare(`SELECT * FROM car_payment_installments WHERE billingId = ? ORDER BY created_at ASC`)
+      .bind(billingId).all()
+    return c.json(rows.results || [])
+  } catch (e: unknown) {
+    return c.json({ error: String(e) }, 500)
+  }
+})
+
 // ── GET /api/:panel - جلب سجلات لوحة (مع Pagination اختياري) ────
 app.get('/api/:panel', async (c) => {
   const panel = c.req.param('panel')
@@ -625,6 +664,17 @@ app.post('/api/:panel', async (c) => {
     // ضمان وجود الأعمدة المطلوبة (auto-migration بدون صلاحيات D1 إدارية)
     if (panel === 'car_payment_cashbox') await ensureCarPaymentColumns(c.env.foundation_db)
     if (panel === 'car_billing') await ensureCarBillingColumns(c.env.foundation_db)
+    if (panel === 'combined_entries') await ensureCombinedEntriesColumns(c.env.foundation_db)
+    if (panel === 'car_payment_installments') {
+      await c.env.foundation_db.prepare(`
+        CREATE TABLE IF NOT EXISTS car_payment_installments (
+          id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+          billingId TEXT NOT NULL, movementId TEXT,
+          payDate TEXT, paidAmount REAL DEFAULT 0, paidBy TEXT, notes TEXT,
+          data TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `).run()
+    }
 
     const body = await c.req.json() as Record<string, unknown>
 
@@ -676,6 +726,7 @@ app.put('/api/:panel/:id', async (c) => {
     // ضمان وجود الأعمدة المطلوبة (auto-migration)
     if (panel === 'car_payment_cashbox') await ensureCarPaymentColumns(c.env.foundation_db)
     if (panel === 'car_billing') await ensureCarBillingColumns(c.env.foundation_db)
+    if (panel === 'combined_entries') await ensureCombinedEntriesColumns(c.env.foundation_db)
 
     const body = await c.req.json() as Record<string, unknown>
     const known = getKnownFields(table)
@@ -766,7 +817,13 @@ function getKnownFields(table: string): string[] {
     cars:                [...common, 'carNo', 'carType', 'carOwnerName', 'driverName', 'ownership'],
     supervisors:         [...common, 'name', 'phone', 'area'],
     executors:           [...common, 'name', 'role', 'phone'],
-    warehouses:          [...common, 'name', 'location', 'manager'],
+    warehouses:          [...common, 'name', 'type', 'location', 'manager', 'capacity'],
+    warehouse_locations: [...common, 'warehouse', 'name'],
+    stock_items:         [...common, 'name', 'brand', 'category', 'unit_main', 'unit2_name', 'unit3_name', 'origin', 'manufacturer'],
+    stock_in:            [...common, 'item_name', 'brand', 'batch_no', 'qty', 'unit', 'production_date', 'expiry_date', 'warehouse', 'location', 'ref_no'],
+    stock_out:           [...common, 'item_name', 'brand', 'batch_no', 'qty', 'unit', 'warehouse', 'location', 'ref_no'],
+    stock_transfer:      [...common, 'item_name', 'brand', 'batch_no', 'qty', 'unit', 'production_date', 'expiry_date', 'from_warehouse', 'to_warehouse'],
+    stock_damaged:       [...common, 'item_name', 'brand', 'batch_no', 'qty', 'unit', 'warehouse', 'damage_reason', 'responsible'],
     associations:        [...common, 'main', 'sub', 'country'],
     contractors:         [...common, 'companyName', 'companyPhone', 'ownerName', 'service'],
     suppliers:           [...common, 'name', 'companyNo', 'category', 'phone', 'address', 'beneficiaryName', 'iban'],
@@ -782,8 +839,9 @@ function getKnownFields(table: string): string[] {
     car_rates:           [...common, 'carType', 'driverName', 'fullDayRate', 'halfDayRate', 'quickMissionRate', 'partialNearRate', 'partialFarRate', 'extraRate'],
     truck_rates:         [...common, 'truckType', 'transportType', 'destination', 'naulonRate', 'driverExpenses', 'scaleExpenses', 'otherExpenses'],
     convoy_billing:      [...common, 'accountingStatus', 'convoyBillingNo', 'accountingDate', 'headNo', 'truckType', 'driverName', 'ownership', 'truckAccountingParty', 'transportType', 'destination', 'naulon', 'driverExpenses', 'scaleExpenses', 'otherExpenses', 'subtotal', 'extraAmount', 'discountAmount', 'total', 'paidAmount', 'amount', 'payDate', 'beneficiary', 'beneficiaryName', 'delegation', 'creditNo', 'statement', 'notes'],
-    combined_entries:    [...common, 'entryNo', 'entryCreatedAt', 'entryType', 'accountingParty', 'beneficiaryName', 'transport', 'movementNos', 'recordCount', 'totalAmount', 'mergedStatement', 'creditNo2', 'notes', '_groupKey', '_isSingle', '_isCustomGroup', '_billingId', 'movementId'],
-    car_payment_cashbox: [...common, '_billingId', 'movementId', 'accountingStatus', 'payDate', 'movementNo', 'accountingParty', 'beneficiaryName', 'transport', 'driverName', 'totalAmount', 'paidAmount', 'paidAmountBefore', 'totalPaidAfter', 'remainingAmount', 'paymentType', 'paidBy', 'periodFromDate', 'periodFromDay', 'periodToDate', 'periodToDay', 'statement', 'creditNo2', 'referenceNo', 'notes'],
+    combined_entries:    [...common, 'entryNo', 'entryCreatedAt', 'entryType', 'accountingParty', 'beneficiaryName', 'transport', 'movementNos', 'recordCount', 'totalAmount', 'mergedStatement', 'creditNo2', 'notes', '_groupKey', '_isSingle', '_isCustomGroup', '_billingId', 'movementId', '_customGroupKey', '_customBillingIds'],
+    car_payment_cashbox:        [...common, '_billingId', 'movementId', 'accountingStatus', 'payDate', 'movementNo', 'accountingParty', 'beneficiaryName', 'transport', 'driverName', 'totalAmount', 'paidAmount', 'paidAmountBefore', 'totalPaidAfter', 'remainingAmount', 'paymentType', 'paidBy', 'periodFromDate', 'periodFromDay', 'periodToDate', 'periodToDay', 'statement', 'creditNo2', 'referenceNo', 'notes', '_parentPayId', 'subSeq'],
+    car_payment_installments:   [...common, 'billingId', 'movementId', 'payDate', 'paidAmount', 'paidBy', 'notes'],
   }
   return specific[table] || common
 }
