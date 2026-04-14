@@ -367,6 +367,67 @@ async function ensureCombinedEntriesColumns(db: D1Database): Promise<void> {
   await ensureColumn(db, 'combined_entries', '_customBillingIds','TEXT')
 }
 
+// ── إنشاء جداول نظام المخازن تلقائياً إذا لم تكن موجودة ──────────
+async function ensureWarehouseTables(db: D1Database): Promise<void> {
+  await db.prepare(`ALTER TABLE warehouses ADD COLUMN type TEXT DEFAULT 'عام'`).run().catch(() => {})
+  await db.prepare(`ALTER TABLE warehouses ADD COLUMN phone TEXT`).run().catch(() => {})
+  await db.prepare(`ALTER TABLE warehouses ADD COLUMN capacity TEXT`).run().catch(() => {})
+
+  await db.prepare(`CREATE TABLE IF NOT EXISTS warehouse_locations (
+    id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+    warehouse TEXT, name TEXT, notes TEXT,
+    data TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`).run()
+
+  await db.prepare(`CREATE TABLE IF NOT EXISTS stock_items (
+    id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+    name TEXT, name_en TEXT, brand TEXT, manufacturer TEXT, origin TEXT,
+    category TEXT, unit_main TEXT, unit2_name TEXT, unit2_qty REAL DEFAULT 1,
+    unit3_name TEXT, unit3_qty REAL DEFAULT 1, notes TEXT,
+    data TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`).run()
+
+  await db.prepare(`CREATE TABLE IF NOT EXISTS stock_in (
+    id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+    item_name TEXT, brand TEXT, batch_no TEXT, qty REAL, unit TEXT,
+    production_date TEXT, expiry_date TEXT, warehouse TEXT, location TEXT, ref_no TEXT, notes TEXT,
+    data TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`).run()
+
+  await db.prepare(`CREATE TABLE IF NOT EXISTS stock_out (
+    id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+    item_name TEXT, brand TEXT, batch_no TEXT, qty REAL, unit TEXT,
+    warehouse TEXT, location TEXT, ref_no TEXT, notes TEXT,
+    data TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`).run()
+
+  await db.prepare(`CREATE TABLE IF NOT EXISTS stock_transfer (
+    id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+    item_name TEXT, brand TEXT, batch_no TEXT, qty REAL, unit TEXT,
+    production_date TEXT, expiry_date TEXT, from_warehouse TEXT, to_warehouse TEXT, notes TEXT,
+    data TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`).run()
+
+  await db.prepare(`CREATE TABLE IF NOT EXISTS stock_damaged (
+    id TEXT PRIMARY KEY, seq INTEGER, code TEXT,
+    item_name TEXT, brand TEXT, batch_no TEXT, qty REAL, unit TEXT,
+    warehouse TEXT, damage_reason TEXT, responsible TEXT, notes TEXT,
+    data TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`).run()
+}
+
 // ── مساعد: دمج حقول الجدول مع حقل data (JSON) ───────────────────
 function mergeRow(row: Record<string, unknown>): Record<string, unknown> {
   if (!row) return {}
@@ -639,6 +700,8 @@ app.get('/api/:panel', async (c) => {
     }
 
     // بدون pagination - جلب الكل (الوضع الافتراضي للتوافق مع الكود القديم)
+    const _warehousePanels = ['warehouse_locations','stock_items','stock_in','stock_out','stock_transfer','stock_damaged','warehouses']
+    if (_warehousePanels.includes(panel)) await ensureWarehouseTables(c.env.foundation_db)
     const { results } = await c.env.foundation_db
       .prepare(`SELECT * FROM ${table} ORDER BY seq ASC, created_at ASC`)
       .all()
@@ -665,6 +728,8 @@ app.post('/api/:panel', async (c) => {
     if (panel === 'car_payment_cashbox') await ensureCarPaymentColumns(c.env.foundation_db)
     if (panel === 'car_billing') await ensureCarBillingColumns(c.env.foundation_db)
     if (panel === 'combined_entries') await ensureCombinedEntriesColumns(c.env.foundation_db)
+    const _whPanels = ['warehouse_locations','stock_items','stock_in','stock_out','stock_transfer','stock_damaged','warehouses']
+    if (_whPanels.includes(panel)) await ensureWarehouseTables(c.env.foundation_db)
     if (panel === 'car_payment_installments') {
       await c.env.foundation_db.prepare(`
         CREATE TABLE IF NOT EXISTS car_payment_installments (
@@ -727,6 +792,8 @@ app.put('/api/:panel/:id', async (c) => {
     if (panel === 'car_payment_cashbox') await ensureCarPaymentColumns(c.env.foundation_db)
     if (panel === 'car_billing') await ensureCarBillingColumns(c.env.foundation_db)
     if (panel === 'combined_entries') await ensureCombinedEntriesColumns(c.env.foundation_db)
+    const _whPanelsPut = ['warehouse_locations','stock_items','stock_in','stock_out','stock_transfer','stock_damaged','warehouses']
+    if (_whPanelsPut.includes(panel)) await ensureWarehouseTables(c.env.foundation_db)
 
     const body = await c.req.json() as Record<string, unknown>
     const known = getKnownFields(table)
